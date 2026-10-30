@@ -42,6 +42,10 @@ async def startup(job_ctx: JobContext) -> None:
     redis = Redis.from_url(str(settings.redis_url))
     ai = build_ai(settings)
     me = await max_client.get_me()
+    try:
+        await max_client.set_commands(texts.BOT_COMMANDS)
+    except MaxApiError as exc:
+        log.warning("bot_commands_not_set", status=exc.status, code=exc.code)
     job_ctx["engine"] = engine
     job_ctx["ai"] = ai
     job_ctx["router"] = build_router()

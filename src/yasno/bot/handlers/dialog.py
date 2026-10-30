@@ -4,6 +4,7 @@ from yasno.ai.exams import looks_like_exam_announcement
 from yasno.bot import texts
 from yasno.bot.common import callback_args, ensure_user, reply
 from yasno.bot.context import BotContext
+from yasno.bot.handlers.homework import handle_pending_text
 from yasno.bot.routing import Router, all_of, callback_prefix, has_text, in_dialog
 from yasno.clock import local_today
 from yasno.db.models import ExamSource, User
@@ -38,6 +39,8 @@ async def on_exam_text(update: Update, ctx: BotContext) -> None:
     assert update.message is not None
     assert update.actor is not None
     user = await ensure_user(ctx, update.actor)
+    if await handle_pending_text(update, ctx, user):
+        return
     today = local_today(ctx.settings.timezone)
     info = await ctx.tutor.extract_exam(update.message.text, today)
     if info is None:
@@ -115,6 +118,8 @@ async def on_text(update: Update, ctx: BotContext) -> None:
     if update.actor.is_bot:
         return
     user = await ensure_user(ctx, update.actor)
+    if await handle_pending_text(update, ctx, user):
+        return
     await _answer_question(update, ctx, user)
 
 

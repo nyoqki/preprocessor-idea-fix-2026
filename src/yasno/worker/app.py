@@ -18,6 +18,7 @@ from yasno.logs import configure_logging
 from yasno.max.client import MaxApiError, MaxClient
 from yasno.max.types import Update
 from yasno.queue import HANDLE_UPDATE, JOB_RESULT_TTL_SECONDS, QUEUE_NAME, redis_settings
+from yasno.services.analysis import Verifier
 from yasno.storage import LocalStorage
 from yasno.worker.reminders import (
     send_exam_reminders,
@@ -51,6 +52,7 @@ async def startup(job_ctx: JobContext) -> None:
         redis=redis,
         tutor=Tutor.from_services(ai),
         storage=LocalStorage(settings.storage_dir),
+        verifier=Verifier(),
         bot_username=me.username or "",
     )
     log.info("worker_started", bot=me.username)
@@ -59,6 +61,7 @@ async def startup(job_ctx: JobContext) -> None:
 async def shutdown(job_ctx: JobContext) -> None:
     bot: BotContext | None = job_ctx.get("bot")
     if bot is not None:
+        bot.verifier.close()
         await bot.max.aclose()
         await bot.redis.aclose()
     ai = job_ctx.get("ai")

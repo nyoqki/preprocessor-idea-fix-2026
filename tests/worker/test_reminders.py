@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -17,10 +18,14 @@ NOW = datetime(2026, 11, 2, 9, 30, tzinfo=UTC)
 
 
 @pytest.fixture
-def harness(db_sessions: Sessions, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Harness:
+def harness(
+    db_sessions: Sessions, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[Harness]:
     monkeypatch.setattr(reminders, "local_now", lambda tz: NOW)
     monkeypatch.setattr(reminders, "utcnow", lambda: NOW)
-    return make_harness(db_sessions, tmp_path)
+    harness = make_harness(db_sessions, tmp_path)
+    yield harness
+    harness.ctx.verifier.close()
 
 
 async def seed_class(sessions: Sessions) -> tuple[int, list[User]]:

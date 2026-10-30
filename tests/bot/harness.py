@@ -12,6 +12,7 @@ from yasno.bot.context import BotContext
 from yasno.config import Settings
 from yasno.max.client import MaxClient
 from yasno.max.types import ChatMember, ChatType, Message, MessageBody, Recipient, Update
+from yasno.services.analysis import Verifier
 from yasno.storage import LocalStorage
 
 
@@ -75,11 +76,22 @@ class FakeMax:
 
 class FakeRedis:
     def __init__(self) -> None:
-        self.values: dict[str, int] = {}
+        self.values: dict[str, Any] = {}
 
     async def incr(self, key: str) -> int:
-        self.values[key] = self.values.get(key, 0) + 1
-        return self.values[key]
+        self.values[key] = int(self.values.get(key, 0)) + 1
+        return int(self.values[key])
+
+    async def get(self, key: str) -> bytes | None:
+        value = self.values.get(key)
+        return str(value).encode() if value is not None else None
+
+    async def set(self, key: str, value: str, ex: int | None = None) -> bool:
+        self.values[key] = value
+        return True
+
+    async def delete(self, *keys: str) -> int:
+        return sum(self.values.pop(key, None) is not None for key in keys)
 
     async def expire(self, key: str, seconds: int) -> bool:
         return True
@@ -105,6 +117,7 @@ def make_harness(sessions: async_sessionmaker[AsyncSession], tmp_path: Path) -> 
         redis=cast(Any, FakeRedis()),
         tutor=Tutor(chat, FakeVision()),
         storage=LocalStorage(tmp_path),
+        verifier=Verifier(workers=1),
         bot_username="yasno_bot",
     )
     return Harness(ctx, fake_max, chat)

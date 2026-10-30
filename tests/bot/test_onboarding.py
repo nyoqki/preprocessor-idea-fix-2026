@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -15,8 +16,10 @@ Sessions = async_sessionmaker[AsyncSession]
 
 
 @pytest.fixture
-def harness(db_sessions: Sessions, tmp_path: Path) -> Harness:
-    return make_harness(db_sessions, tmp_path)
+def harness(db_sessions: Sessions, tmp_path: Path) -> Iterator[Harness]:
+    harness = make_harness(db_sessions, tmp_path)
+    yield harness
+    harness.ctx.verifier.close()
 
 
 def bot_started(user_id: int = 100, payload: str | None = None) -> dict[str, object]:

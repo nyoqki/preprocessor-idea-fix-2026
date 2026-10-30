@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from yasno.ai.tutor import Tutor
 from yasno.config import Settings
 from yasno.max.client import MaxClient
+from yasno.services.analysis import Verifier
 from yasno.storage import Storage
 
 
@@ -17,4 +18,5 @@ class BotContext:
     redis: Redis
     tutor: Tutor
     storage: Storage
+    verifier: Verifier
     bot_username: str

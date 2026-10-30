@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -14,8 +15,10 @@ Sessions = async_sessionmaker[AsyncSession]
 
 
 @pytest.fixture
-def harness(db_sessions: Sessions, tmp_path: Path) -> Harness:
-    return make_harness(db_sessions, tmp_path)
+def harness(db_sessions: Sessions, tmp_path: Path) -> Iterator[Harness]:
+    harness = make_harness(db_sessions, tmp_path)
+    yield harness
+    harness.ctx.verifier.close()
 
 
 async def test_photo_in_class_chat_becomes_material(

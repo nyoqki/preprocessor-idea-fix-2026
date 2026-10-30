@@ -15,6 +15,7 @@ from yasno.max.tls import build_ssl_context
 from yasno.max.types import (
     BotInfo,
     Chat,
+    ChatMember,
     ChatMembers,
     Message,
     SendMessageResult,
@@ -246,6 +247,9 @@ class MaxClient:
 
     async def get_chat(self, chat_id: int) -> Chat:
         return self._parse(Chat, await self._request("GET", f"/chats/{chat_id}"))
+
+    async def get_my_membership(self, chat_id: int) -> ChatMember:
+        return self._parse(ChatMember, await self._request("GET", f"/chats/{chat_id}/members/me"))
 
     async def get_members(self, chat_id: int, *, marker: int | None = None) -> ChatMembers:
         data = await self._request(

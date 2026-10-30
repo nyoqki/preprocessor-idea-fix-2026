@@ -141,6 +141,7 @@ class Update(MaxModel):
     is_channel: bool | None = None
     inviter_id: int | None = None
     message_id: str | None = None
+    title: str | None = None
 
     @property
     def kind(self) -> UpdateType | None:

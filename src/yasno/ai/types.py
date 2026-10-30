@@ -18,6 +18,8 @@ class TranscribedLine(BaseModel):
     text: str = ""
     confidence: float = Field(default=1.0, ge=0, le=1)
     bbox: BoundingBox | None = None
+    illegible: bool = False
+    is_math: bool = True
 
 
 class Transcription(BaseModel):

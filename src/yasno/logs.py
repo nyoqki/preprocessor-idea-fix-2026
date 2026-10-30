@@ -45,4 +45,5 @@ def configure_logging(level: str = "INFO", *, json: bool = True) -> None:
         lg = logging.getLogger(name)
         lg.handlers.clear()
         lg.propagate = True
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    for noisy in ("httpx", "httpcore", "asyncio"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)

@@ -2,7 +2,6 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.responses import ORJSONResponse
 
 from yasno.api import health, webapp, webhook
 from yasno.api.webapp.spa import SecurityHeadersMiddleware, spa_router
@@ -35,7 +34,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="Yasno",
         lifespan=lifespan,
-        default_response_class=ORJSONResponse,
         docs_url=None,
         redoc_url=None,
         openapi_url=None,

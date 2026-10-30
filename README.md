@@ -1,0 +1,137 @@
+# Ясно
+
+Личный ИИ-тренажёр по математике в Сферуме (мессенджер MAX). Команда «Что такое препроцессор», МБОУ-СОШ № 10, Орёл. Хакатон «Идея фикс», трек «Искусственный интеллект в школьных процессах».
+
+Ученик присылает боту фото домашней работы. Бот распознаёт решение, находит шаг, на котором появилась ошибка, и объясняет её наводящим вопросом — без готового ответа. Ошибки складываются в личную карту пробелов. За два дня до контрольной бот сам пишет ученику и собирает тест по темам контрольной и по его собственным пробелам.
+
+## Возможности
+
+- Разбор фото решения: распознавание строк, пошаговая символьная проверка (SymPy), тип ошибки, подсказка без ответа и продолжение диалога.
+- Личная карта пробелов с интервальным повторением.
+- Контрольные: из сообщения ученика («в четверг контрольная по алгебре») или из объявления в чате класса.
+- Персональные тесты: задания генерируются с гарантированно верным ответом, неверные варианты — типичные ошибки самого ученика.
+- Материалы класса: фото конспектов из чата класса распознаются и попадают в поиск.
+- Мини-приложение: карта пробелов, история разборов с подсветкой ошибки на фото, тесты, материалы, экран учителя.
+- Учителю — еженедельная анонимная сводка «где класс плывёт».
+
+## Архитектура
+
+| Компонент | Назначение |
+|---|---|
+| `api` | FastAPI: webhook MAX, API мини-приложения, раздача мини-приложения |
+| `worker` | arq: обработка обновлений, разбор фото, напоминания по расписанию |
+| `postgres` | PostgreSQL 17 + pgvector |
+| `redis` | очередь задач и короткоживущие состояния диалога |
+| `caddy` | HTTPS с автоматическим сертификатом (профиль `public`) |
+
+ИИ — только российские провайдеры: Yandex AI Studio (основной) и GigaChat (резервный), с автоматическим переключением.
+
+## Требования
+
+- Docker 24+ с Compose v2
+- Домен, указывающий на сервер, открытые порты 80 и 443
+- Токен бота MAX, ключи Yandex AI Studio и/или GigaChat
+
+## Запуск через Docker Compose
+
+```bash
+git clone git@github.com:nyoqki/preprocessor-idea-fix-2026.git yasno
+cd yasno
+cp .env.example .env
+# заполнить MAX_BOT_TOKEN, MAX_WEBHOOK_SECRET, DOMAIN, PUBLIC_BASE_URL,
+# POSTGRES_PASSWORD, YANDEX_API_KEY, YANDEX_FOLDER_ID и/или GIGACHAT_CREDENTIALS
+docker compose --profile public up -d --build
+docker compose exec api yasno webhook set
+```
+
+Миграции базы применяются автоматически сервисом `migrate` перед стартом `api` и `worker`.
+
+## Сборка и запуск контейнера
+
+Сборка образа:
+
+```bash
+docker build -t yasno .
+```
+
+Готовый образ публикуется в GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/nyoqki/preprocessor-idea-fix-2026:latest
+```
+
+Запуск отдельных процессов из одного образа:
+
+```bash
+docker run --rm --env-file .env yasno migrate
+docker run -d --name yasno-api --env-file .env -p 8000:8000 yasno api
+docker run -d --name yasno-worker --env-file .env yasno worker
+```
+
+## Пример запуска через командную строку
+
+```bash
+$ docker run --rm --env-file .env yasno webhook info
+bot: ideya_fiks_159_bot (365466262)
+webhook: https://yasno.example.ru/webhook/max types=['message_created', 'message_callback', ...]
+```
+
+Команды `yasno`:
+
+| Команда | Что делает |
+|---|---|
+| `yasno api [--host H] [--port P]` | HTTP-сервер (webhook, API, мини-приложение) |
+| `yasno worker` | обработчик очереди и напоминаний |
+| `yasno migrate [revision]` | миграции базы данных |
+| `yasno webhook set\|delete\|info` | управление подпиской на события MAX |
+| `yasno poll` | получение событий через long polling (для разработки) |
+| `python -m yasno.ai.eval <папка>` | сравнение моделей распознавания на наборе фото |
+
+## Переменные окружения
+
+| Переменная | Назначение |
+|---|---|
+| `MAX_BOT_TOKEN` | токен бота MAX |
+| `MAX_WEBHOOK_SECRET` | секрет заголовка `X-Max-Bot-Api-Secret` (буквы, цифры, `_`, `-`) |
+| `PUBLIC_BASE_URL`, `DOMAIN` | публичный адрес сервиса |
+| `DATABASE_URL`, `REDIS_URL` | подключения (в Compose задаются автоматически) |
+| `AI_PROVIDER_ORDER` | порядок провайдеров, например `yandex,gigachat` |
+| `YANDEX_API_KEY`, `YANDEX_FOLDER_ID` | доступ к Yandex AI Studio |
+| `YANDEX_CHAT_MODEL`, `YANDEX_VISION_MODEL`, `YANDEX_OCR_MODEL` | модели Yandex |
+| `GIGACHAT_CREDENTIALS`, `GIGACHAT_SCOPE`, `GIGACHAT_MODEL` | доступ к GigaChat |
+| `AI_FAKE` | `true` — детерминированные заглушки вместо ИИ (разработка) |
+
+Полный список — в `src/yasno/config.py`.
+
+## Разработка
+
+```bash
+uv sync
+uv run yasno migrate
+uv run yasno poll &
+uv run yasno worker
+```
+
+Проверки:
+
+```bash
+uv run ruff format --check
+uv run ruff check
+uv run mypy
+TEST_DATABASE_URL=postgresql+asyncpg://user@localhost/yasno_test uv run pytest
+```
+
+Мини-приложение:
+
+```bash
+cd webapp
+npm ci
+npm run dev:mock
+```
+
+Зависимости Python зафиксированы в `uv.lock`; `requirements.txt` генерируется командой
+`uv export --locked --no-dev --no-hashes --no-emit-project --no-header --format requirements-txt -o requirements.txt`.
+
+## Данные
+
+Фото работ и карта пробелов — персональные данные ребёнка. Они хранятся на сервере в России и обрабатываются только российскими ИИ-провайдерами. Перед первым разбором бот запрашивает согласие, а для детей младше 14 лет — согласие родителя. Учитель видит только анонимную статистику класса. Команда `/delete` удаляет все данные ученика.

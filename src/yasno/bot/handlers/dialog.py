@@ -1,5 +1,3 @@
-from datetime import date
-
 from yasno.ai.exams import looks_like_exam_announcement
 from yasno.bot import texts
 from yasno.bot.common import callback_args, ensure_user, reply
@@ -15,19 +13,6 @@ from yasno.services import exams, materials
 router = Router()
 
 QUESTIONS_PER_DAY = 30
-
-
-def describe_day(day: date, today: date) -> str:
-    delta = (day - today).days
-    if delta == 0:
-        return "сегодня"
-    if delta == 1:
-        return "завтра"
-    weekday = texts.WEEKDAYS[day.weekday()]
-    prefix = "во" if weekday == "вторник" else "в"
-    if delta < 7:
-        return f"{prefix} {weekday}"
-    return f"{day.day} {texts.MONTHS_GENITIVE[day.month - 1]}"
 
 
 def is_exam_text(update: Update) -> bool:
@@ -66,7 +51,7 @@ async def on_exam_text(update: Update, ctx: BotContext) -> None:
     text = texts.EXAM_SAVED.format(
         title=info.title,
         subject=texts.subject_dative(subject),
-        when=describe_day(info.date, today),
+        when=texts.describe_day(info.date, today),
     )
     rows = [[keyboard.callback(texts.BUTTON_CANCEL, f"exam:del:{exam.id}")]]
     await reply(ctx, user.max_user_id, text, rows)

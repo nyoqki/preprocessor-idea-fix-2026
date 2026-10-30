@@ -1,3 +1,5 @@
+from datetime import date
+
 GREETING = (
     "Привет, {name}! Я **Ясно** — помогаю разобраться с математикой.\n\n"
     "Пришли фото решения из тетради — покажу, на каком шаге ошибка, и помогу "
@@ -92,6 +94,7 @@ FOLLOWUP_DONE = "Если хочешь проверить исправленно
 
 QUIZ_QUESTION = "Вопрос {number} из {total} · {topic}\n\n{prompt}"
 QUIZ_STARTED = "Поехали! {total} вопросов, отвечай кнопками."
+QUIZ_STARTED_EXAM = "Тест к контрольной {when}: темы контрольной и твои пробелы. {total} вопросов."
 QUIZ_RIGHT = "Верно!"
 QUIZ_WRONG = "Не совсем. Правильный ответ: {answer}.{explanation}"
 QUIZ_DONE = "Готово: {correct} из {total}. Ошибки я добавил в карту — повторим их через пару дней."
@@ -164,3 +167,16 @@ def subject_dative(subject: str | None) -> str:
     if not subject:
         return "предмету"
     return SUBJECT_DATIVE.get(subject.lower(), subject)
+
+
+def describe_day(day: date, today: date) -> str:
+    delta = (day - today).days
+    if delta == 0:
+        return "сегодня"
+    if delta == 1:
+        return "завтра"
+    weekday = WEEKDAYS[day.weekday()]
+    prefix = "во" if weekday == "вторник" else "в"
+    if delta < 7:
+        return f"{prefix} {weekday}"
+    return f"{day.day} {MONTHS_GENITIVE[day.month - 1]}"

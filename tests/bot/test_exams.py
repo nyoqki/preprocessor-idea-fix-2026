@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests import factories
 from tests.bot.harness import Harness, make_harness
-from yasno.bot.handlers.dialog import describe_day
+from yasno.bot.texts import describe_day
 from yasno.db.models import Exam, ExamSource
 
 Sessions = async_sessionmaker[AsyncSession]

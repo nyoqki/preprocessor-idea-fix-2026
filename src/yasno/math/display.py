@@ -152,6 +152,13 @@ def _command(text: str, index: int, name: str) -> tuple[str, int]:
     if name == "mathbb":
         content, index = _read_group(text, index)
         return {"R": "ℝ", "N": "ℕ", "Z": "ℤ", "Q": "ℚ"}.get(content, content), index
+    if name in ("begin", "end"):
+        environment, index = _read_group(text, index)
+        if name == "begin" and environment == "array":
+            _, index = _read_group(text, index)
+        if environment == "cases":
+            return ("{ " if name == "begin" else " }"), index
+        return "", index
     if name in _FUNCTIONS:
         return _FUNCTIONS[name] + " ", index
     if name in _SYMBOLS:
@@ -209,6 +216,7 @@ def _tidy(text: str) -> str:
     text = re.sub(r"(?<=[\w)²³⁰¹⁴-⁹])\s*−\s*", " − ", text)
     text = re.sub(r"\s*·\s*", "·", text)
     text = re.sub(r"\s*∪\s*", " ∪ ", text)
+    text = re.sub(r"\)\s+\(", ")(", text)
     text = re.sub(r"\(\s+", "(", text)
     text = re.sub(r"\s+\)", ")", text)
     text = re.sub(r"\s+([,;])", r"\1", text)

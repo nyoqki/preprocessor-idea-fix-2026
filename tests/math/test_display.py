@@ -29,6 +29,8 @@ from yasno.math.display import to_display
         (r"\tan x", "tg x"),
         ("$x^{10}$", "x¹⁰"),
         (r"a^{\frac{1}{2}}", "a^½"),
+        (r"\begin{cases} x + y = 5 \\ x - y = 1 \end{cases}", "{ x + y = 5; x − y = 1 }"),
+        (r"\left(x - 1\right) \left(x + 2\right)", "(x − 1)(x + 2)"),
     ],
 )
 def test_to_display(latex: str, expected: str) -> None:

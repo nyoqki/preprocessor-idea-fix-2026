@@ -12,7 +12,6 @@ from yasno.api import webapp
 from yasno.api.deps import get_session
 from yasno.api.webapp.auth import current_user, sign_media_token
 from yasno.api.webapp.materials import escape_like, make_snippet
-from yasno.api.webapp.submissions import sniff_image_type
 from yasno.config import Settings
 from yasno.db.models import (
     ConsentStatus,
@@ -23,6 +22,7 @@ from yasno.db.models import (
     SubmissionStatus,
     User,
 )
+from yasno.media import sniff_image_type
 from yasno.storage import LocalStorage
 
 TOKEN = "bot-token"

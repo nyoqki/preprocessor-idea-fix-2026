@@ -27,30 +27,14 @@ from yasno.api.webapp.schemas import (
 from yasno.config import Settings
 from yasno.db.models import Submission, SubmissionKind
 from yasno.math.topics import topic_title
+from yasno.media import sniff_image_type
 from yasno.storage import InvalidKeyError, ObjectNotFoundError
 
 router = APIRouter(prefix="/submissions")
 
-IMAGE_SIGNATURES: tuple[tuple[bytes, str], ...] = (
-    (b"\xff\xd8\xff", "image/jpeg"),
-    (b"\x89PNG\r\n\x1a\n", "image/png"),
-    (b"GIF8", "image/gif"),
-)
-
 
 def image_scope(submission_id: int) -> str:
     return f"submission-image:{submission_id}"
-
-
-def sniff_image_type(data: bytes) -> str:
-    for signature, content_type in IMAGE_SIGNATURES:
-        if data.startswith(signature):
-            return content_type
-    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
-        return "image/webp"
-    if data[4:12] in (b"ftypheic", b"ftypheix", b"ftypmif1"):
-        return "image/heic"
-    return "application/octet-stream"
 
 
 def _analysis(submission: Submission) -> dict[str, Any]:

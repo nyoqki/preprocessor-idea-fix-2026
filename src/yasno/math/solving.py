@@ -446,3 +446,28 @@ def answer_latex(values: Any, variable: Any) -> str:
     if is_finite(values):
         return "; ".join(f"{name} = {number_latex(item)}" for item in finite_elements(values))
     return f"{name} \\in {set_latex(values)}"
+
+
+def same_interior(first: Any, second: Any) -> bool | None:
+    a = _pieces(first)
+    b = _pieces(second)
+    if a is None or b is None:
+        return None
+    open_a = [(low, high) for low, high, _, _ in a if not _close(low, high)]
+    open_b = [(low, high) for low, high, _, _ in b if not _close(low, high)]
+    return len(open_a) == len(open_b) and all(
+        _close(x[0], y[0]) and _close(x[1], y[1]) for x, y in zip(open_a, open_b, strict=True)
+    )
+
+
+def critical_points(parts: Sequence[Any], variable: Any) -> Any:
+    points: Any = sp.EmptySet
+    for left, right in pairwise(parts):
+        try:
+            points = points.union(solve_equation(left, right, variable))
+        except Unsupported:
+            continue
+    boundary = limited(lambda: joint_domain(parts, variable).boundary, 0.3, sp.EmptySet)
+    if _finite_real(boundary):
+        points = points.union(boundary)
+    return points

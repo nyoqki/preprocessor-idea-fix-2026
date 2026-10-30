@@ -2,13 +2,13 @@ from datetime import timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from yasno.bot import texts
 from yasno.bot.common import reply
 from yasno.bot.context import BotContext
 from yasno.clock import local_now, utcnow
-from yasno.db.models import ConsentStatus, Exam, Role, User
+from yasno.db.models import ConsentStatus, Exam, Role, TopicProgress, User
 from yasno.math.topics import topic_title
 from yasno.max import keyboard
 from yasno.max.client import MaxApiError
@@ -116,4 +116,66 @@ async def send_review_reminders(job_ctx: dict[str, Any]) -> int:
         ]
         sent += await _notify(ctx, users[user_id], "review", today, text, rows)
     log.info("review_reminders_sent", count=sent)
+    return sent
+
+
+MIN_GROUP_FOR_DIGEST = 2
+
+
+async def _class_digest(ctx: BotContext, class_id: int) -> str | None:
+    async with ctx.sessions() as session:
+        total = await session.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.class_id == class_id, User.role == Role.STUDENT)
+        )
+        rows = (
+            await session.execute(
+                select(TopicProgress.topic_code, func.count(TopicProgress.user_id))
+                .join(User, User.id == TopicProgress.user_id)
+                .where(
+                    User.class_id == class_id,
+                    User.role == Role.STUDENT,
+                    TopicProgress.mistakes_total > 0,
+                    TopicProgress.box <= 1,
+                )
+                .group_by(TopicProgress.topic_code)
+                .having(func.count(TopicProgress.user_id) >= MIN_GROUP_FOR_DIGEST)
+                .order_by(func.count(TopicProgress.user_id).desc())
+                .limit(5)
+            )
+        ).all()
+    if not rows:
+        return None
+    lines = [f"• {topic_title(code)} — {count} из {total}" for code, count in rows]
+    return texts.TEACHER_DIGEST.format(topics="\n".join(lines))
+
+
+async def send_teacher_digest(job_ctx: dict[str, Any]) -> int:
+    ctx: BotContext = job_ctx["bot"]
+    week = local_now(ctx.settings.timezone).strftime("%G-W%V")
+    async with ctx.sessions() as session:
+        teachers = list(
+            (
+                await session.execute(
+                    select(User).where(
+                        User.role == Role.TEACHER,
+                        User.class_id.is_not(None),
+                        User.dialog_available.is_(True),
+                    )
+                )
+            ).scalars()
+        )
+    sent = 0
+    digests: dict[int, str | None] = {}
+    for teacher in teachers:
+        assert teacher.class_id is not None
+        if teacher.class_id not in digests:
+            digests[teacher.class_id] = await _class_digest(ctx, teacher.class_id)
+        digest = digests[teacher.class_id]
+        if digest is None:
+            continue
+        rows = [[keyboard.open_app(texts.BUTTON_OPEN_TEACHER, ctx.bot_username, "teacher")]]
+        sent += await _notify(ctx, teacher, "teacher_digest", week, digest, rows)
+    log.info("teacher_digests_sent", count=sent)
     return sent

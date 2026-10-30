@@ -19,7 +19,11 @@ from yasno.max.client import MaxApiError, MaxClient
 from yasno.max.types import Update
 from yasno.queue import HANDLE_UPDATE, JOB_RESULT_TTL_SECONDS, QUEUE_NAME, redis_settings
 from yasno.storage import LocalStorage
-from yasno.worker.reminders import send_exam_reminders, send_review_reminders
+from yasno.worker.reminders import (
+    send_exam_reminders,
+    send_review_reminders,
+    send_teacher_digest,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -101,6 +105,13 @@ class WorkerSettings:
             unique=True,
         ),
         cron(cast(WorkerCoroutine, send_review_reminders), hour={13}, minute={0}, unique=True),
+        cron(
+            cast(WorkerCoroutine, send_teacher_digest),
+            weekday={6},
+            hour={15},
+            minute={0},
+            unique=True,
+        ),
     ]
     on_startup = startup
     on_shutdown = shutdown

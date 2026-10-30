@@ -102,7 +102,6 @@ class YandexClient:
                 "json_schema": {
                     "name": str(json_schema.get("title") or "response"),
                     "schema": json_schema,
-                    "strict": True,
                 },
             }
         started = time.monotonic()

@@ -42,6 +42,36 @@ class Settings(BaseSettings):
 
     timezone: str = "Europe/Moscow"
 
+    ai_provider_order: str = "yandex,gigachat"
+    ai_fake: bool = False
+    ai_timeout_seconds: float = Field(default=60.0, gt=0)
+    ai_max_attempts: int = Field(default=3, ge=1)
+    ai_breaker_failures: int = Field(default=3, ge=1)
+    ai_breaker_cooldown_seconds: float = Field(default=60.0, ge=0)
+    ai_ocr_enabled: bool = True
+
+    yandex_api_key: SecretStr | None = None
+    yandex_folder_id: str | None = None
+    yandex_llm_url: AnyHttpUrl = AnyHttpUrl("https://llm.api.cloud.yandex.net/v1")
+    yandex_ocr_url: AnyHttpUrl = AnyHttpUrl("https://ocr.api.cloud.yandex.net/ocr/v1")
+    yandex_chat_model: str = "yandexgpt"
+    yandex_vision_model: str = "gemma-3-27b-it"
+    yandex_ocr_model: str = "handwritten"
+    yandex_embedding_doc_model: str = "text-search-doc"
+    yandex_embedding_query_model: str = "text-search-query"
+    yandex_embedding_dimensions: int = Field(default=256, gt=0)
+
+    gigachat_credentials: SecretStr | None = None
+    gigachat_scope: str = "GIGACHAT_API_PERS"
+    gigachat_model: str = "GigaChat-2-Max"
+    gigachat_vision_model: str | None = None
+    gigachat_base_url: AnyHttpUrl = AnyHttpUrl("https://api.giga.chat/v1")
+    gigachat_auth_url: AnyHttpUrl = AnyHttpUrl("https://ngw.devices.sberbank.ru:9443/api/v2/oauth")
+
+    @property
+    def ai_providers(self) -> list[str]:
+        return [p.strip().lower() for p in self.ai_provider_order.split(",") if p.strip()]
+
     @property
     def webhook_path(self) -> str:
         return "/webhook/max"

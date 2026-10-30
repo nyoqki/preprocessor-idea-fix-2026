@@ -1,5 +1,6 @@
 import asyncio
 
+import httpx
 import structlog
 
 from yasno.config import Settings
@@ -21,15 +22,19 @@ async def run_polling(settings: Settings, stop: asyncio.Event | None = None) -> 
             log.warning("removing_webhook_for_polling", url=subscription.url)
             await client.unsubscribe(subscription.url)
         marker: int | None = None
+        failures = 0
         log.info("polling_started")
         try:
             while not stop.is_set():
                 try:
                     batch = await client.get_updates(marker=marker, wait_seconds=30)
-                except MaxApiError as exc:
-                    log.warning("polling_error", error=str(exc))
-                    await asyncio.sleep(3)
+                except (MaxApiError, httpx.HTTPError) as exc:
+                    failures += 1
+                    delay = min(2**failures, 60)
+                    log.warning("polling_error", error=repr(exc), retry_in=delay)
+                    await asyncio.sleep(delay)
                     continue
+                failures = 0
                 for update in batch.updates:
                     raw = update.model_dump(mode="json", exclude_none=True)
                     await enqueue_update(queue, raw, update)

@@ -29,6 +29,8 @@ class FakeMax:
     callbacks: list[dict[str, Any]] = field(default_factory=list)
     permissions: list[str] = field(default_factory=lambda: ["read_all_messages", "write"])
     chat_title: str = "9Б класс"
+    image: bytes = b"\xff\xd8\xff\xe0fake-jpeg"
+    downloads: list[str] = field(default_factory=list)
 
     async def send_message(
         self,
@@ -57,6 +59,10 @@ class FakeMax:
 
     async def get_my_membership(self, chat_id: int) -> ChatMember:
         return ChatMember(user_id=1, first_name="bot", is_bot=True, permissions=self.permissions)
+
+    async def download(self, url: str, **_: Any) -> bytes:
+        self.downloads.append(url)
+        return self.image
 
     def texts_to(self, user_id: int) -> list[str]:
         return [s.text or "" for s in self.sent if s.user_id == user_id]

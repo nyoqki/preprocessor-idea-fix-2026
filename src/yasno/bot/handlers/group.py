@@ -10,13 +10,15 @@ from yasno.db.models import ExamSource
 from yasno.max import keyboard
 from yasno.max.client import MaxApiError
 from yasno.max.types import Update, UpdateType
-from yasno.services import classes, exams
+from yasno.services import classes, exams, materials
+from yasno.users import get_by_max_id
 
 log = structlog.get_logger(__name__)
 
 router = Router()
 
 READ_PERMISSION = "read_all_messages"
+MATERIALS_PER_CLASS_PER_DAY = 40
 
 
 async def _can_read(ctx: BotContext, chat_id: int) -> bool:
@@ -85,6 +87,11 @@ async def on_group_message(update: Update, ctx: BotContext) -> None:
         if not school_class.bot_can_read_chat:
             school_class.bot_can_read_chat = True
         class_id = school_class.id
+        sender = await get_by_max_id(session, message.sender.user_id) if message.sender else None
+        uploader_id = sender.id if sender is not None else None
+    images = [a for a in message.all_attachments() if a.type == "image" and a.url]
+    if images:
+        await _ingest_images(ctx, class_id, uploader_id, [a.url for a in images if a.url])
     if not has_text(update) or not looks_like_exam_announcement(message.text):
         return
     info = await ctx.tutor.extract_exam(message.text, local_today(ctx.settings.timezone))
@@ -103,3 +110,33 @@ async def on_group_message(update: Update, ctx: BotContext) -> None:
             source_mid=message.body.mid,
         )
     log.info("exam_from_chat", exam_id=exam.id, created=created, class_id=class_id)
+
+
+async def _within_daily_quota(ctx: BotContext, class_id: int) -> bool:
+    key = f"materials:{class_id}:{local_today(ctx.settings.timezone).isoformat()}"
+    count = await ctx.redis.incr(key)
+    if count == 1:
+        await ctx.redis.expire(key, 2 * 24 * 3600)
+    return int(count) <= MATERIALS_PER_CLASS_PER_DAY
+
+
+async def _ingest_images(
+    ctx: BotContext, class_id: int, uploader_id: int | None, urls: list[str]
+) -> None:
+    for url in urls:
+        if not await _within_daily_quota(ctx, class_id):
+            log.info("materials_quota_reached", class_id=class_id)
+            return
+        try:
+            image = await ctx.max.download(url)
+        except MaxApiError as exc:
+            log.warning("material_download_failed", class_id=class_id, error=str(exc))
+            continue
+        await materials.ingest_material(
+            ctx.sessions,
+            ctx.storage,
+            ctx.tutor,
+            class_id=class_id,
+            uploader_id=uploader_id,
+            image=image,
+        )

@@ -48,6 +48,17 @@ def has_text(update: Update) -> bool:
     return update.message is not None and bool(update.message.text)
 
 
+def command(*names: str) -> Predicate:
+    expected = {f"/{name}" for name in names}
+
+    def check(update: Update) -> bool:
+        if update.message is None or not update.message.text:
+            return False
+        return update.message.text.split(maxsplit=1)[0].lower() in expected
+
+    return check
+
+
 def all_of(*predicates: Predicate) -> Predicate:
     def check(update: Update) -> bool:
         return all(p(update) for p in predicates)

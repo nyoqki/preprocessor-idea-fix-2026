@@ -225,6 +225,7 @@ class Material(TimestampMixin, Base):
         ForeignKey("submissions.id", ondelete="SET NULL")
     )
     title: Mapped[str | None] = mapped_column(String(300))
+    image_key: Mapped[str | None] = mapped_column(String(300))
     content: Mapped[str] = mapped_column(Text, server_default="")
     topic_codes: Mapped[list[str]] = mapped_column(ARRAY(String(32)), server_default=text("'{}'"))
 

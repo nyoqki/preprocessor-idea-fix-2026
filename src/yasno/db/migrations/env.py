@@ -3,6 +3,7 @@ import asyncio
 from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from yasno.config import get_settings
 from yasno.db import models
 from yasno.db.base import Base
 
@@ -22,8 +23,12 @@ def _configure(connection: object | None = None, url: str | None = None) -> None
     )
 
 
+def _url() -> str:
+    return context.config.get_main_option("sqlalchemy.url") or str(get_settings().database_url)
+
+
 def run_offline() -> None:
-    _configure(url=context.config.get_main_option("sqlalchemy.url"))
+    _configure(url=_url())
     with context.begin_transaction():
         context.run_migrations()
 
@@ -35,9 +40,7 @@ def _run_sync(connection: object) -> None:
 
 
 async def run_online() -> None:
-    url = context.config.get_main_option("sqlalchemy.url")
-    assert url is not None
-    engine = create_async_engine(url)
+    engine = create_async_engine(_url())
     async with engine.connect() as connection:
         await connection.run_sync(_run_sync)
     await engine.dispose()

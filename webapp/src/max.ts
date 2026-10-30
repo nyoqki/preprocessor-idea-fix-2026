@@ -98,12 +98,12 @@ export const haptics = {
 };
 
 export function hasBackButton(): boolean {
-  return Boolean(webApp()?.BackButton?.show);
+  return isInsideMax() && Boolean(webApp()?.BackButton?.show);
 }
 
 export function showBackButton(onClick: () => void): () => void {
   const button = webApp()?.BackButton;
-  if (!button) {
+  if (!button || !isInsideMax()) {
     return () => undefined;
   }
   safely(() => button.onClick?.(onClick));

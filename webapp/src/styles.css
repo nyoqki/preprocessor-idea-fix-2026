@@ -1133,8 +1133,8 @@ body {
 
 .mock-badge {
   position: fixed;
-  top: calc(var(--safe-top) + 8px);
-  right: calc(var(--safe-right) + 8px);
+  bottom: calc(var(--safe-bottom) + var(--tabbar-height) + 16px);
+  right: calc(var(--safe-right) + 12px);
   z-index: 30;
   padding: 3px 8px;
   border-radius: 999px;

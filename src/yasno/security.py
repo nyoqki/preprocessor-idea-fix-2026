@@ -1,4 +1,3 @@
-import base64
 import hashlib
 import hmac
 import time
@@ -9,8 +8,7 @@ def derive_key(secret: str, purpose: str) -> bytes:
 
 
 def _signature(key: bytes, message: str) -> str:
-    digest = hmac.new(key, message.encode(), hashlib.sha256).digest()[:12]
-    return base64.urlsafe_b64encode(digest).decode().rstrip("=").replace("-", "0")
+    return hmac.new(key, message.encode(), hashlib.sha256).hexdigest()[:24]
 
 
 def sign_token(key: bytes, subject: int, ttl_seconds: int, *, now: float | None = None) -> str:

@@ -10,6 +10,10 @@ os.environ.setdefault("MAX_BOT_TOKEN", "test-token")
 os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("LOG_JSON", "false")
 
+from yasno.config import Settings
+
+Settings.model_config["env_file"] = None
+
 
 @pytest.fixture
 async def db_sessions() -> AsyncIterator[async_sessionmaker[AsyncSession]]:

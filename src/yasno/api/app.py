@@ -4,11 +4,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import ORJSONResponse
 
-from yasno.api import health, webhook
+from yasno.api import health, webapp, webhook
+from yasno.api.webapp.spa import SecurityHeadersMiddleware, spa_router
 from yasno.config import Settings, get_settings
 from yasno.db.session import create_engine, create_sessionmaker
 from yasno.logs import configure_logging
 from yasno.queue import create_queue
+from yasno.storage import create_storage
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -23,6 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.engine = engine
         app.state.sessions = create_sessionmaker(engine)
         app.state.queue = queue
+        app.state.storage = create_storage(settings)
         try:
             yield
         finally:
@@ -37,6 +40,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
+    app.state.settings = settings
+    app.add_middleware(SecurityHeadersMiddleware)
     app.include_router(health.router)
     app.include_router(webhook.router)
+    app.include_router(webapp.router)
+    spa = spa_router(settings.webapp_dist_dir)
+    if spa is not None:
+        app.include_router(spa)
     return app

@@ -141,3 +141,34 @@ async def test_unknown_topic_is_unavailable(harness: Harness, db_sessions: Sessi
     await seed(db_sessions)
     await harness.feed(factories.callback("quiz:topic:geom.planimetry", callback_id="s"))
     assert harness.max.callbacks[-1]["text"] == "Этот тест уже недоступен."
+
+
+@pytest.mark.db
+async def test_quiz_command_uses_upcoming_exam(harness: Harness, db_sessions: Sessions) -> None:
+    _, exam_id = await seed(db_sessions)
+    await harness.feed(factories.dialog_message("/quiz"))
+    sent = harness.max.texts_to(100)
+    assert sent[-2].startswith("Тест к контрольной")
+    assert sent[-1].startswith("Вопрос 1 из 5")
+    async with db_sessions() as session:
+        quiz = (await session.execute(select(Quiz))).scalar_one()
+    assert quiz.exam_id == exam_id
+    assert quiz.status is QuizStatus.ACTIVE
+
+
+@pytest.mark.db
+async def test_quiz_command_without_exam_uses_grade_topics(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    async with db_sessions.begin() as session:
+        session.add(User(max_user_id=100, grade=8, consent_status=ConsentStatus.GRANTED))
+    await harness.feed(factories.dialog_message("/quiz"))
+    sent = harness.max.texts_to(100)
+    assert sent[-2] == "Поехали! 5 вопросов, отвечай кнопками."
+    assert len(harness.max.buttons()) >= 2
+
+
+@pytest.mark.db
+async def test_quiz_command_requires_consent(harness: Harness) -> None:
+    await harness.feed(factories.dialog_message("/quiz"))
+    assert harness.max.texts_to(100)[-1] == "Сначала нужно согласие на обработку данных."

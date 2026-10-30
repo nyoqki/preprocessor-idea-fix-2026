@@ -3,8 +3,8 @@ import structlog
 from yasno.bot import texts
 from yasno.bot.common import callback_args, ensure_user, open_app_row, reply
 from yasno.bot.context import BotContext
-from yasno.bot.routing import Router, callback_prefix
-from yasno.clock import utcnow
+from yasno.bot.routing import Router, all_of, callback_prefix, command, in_dialog
+from yasno.clock import local_today, utcnow
 from yasno.db.models import Exam, Quiz, QuizItem, QuizReason, User
 from yasno.math.topics import topic_title
 from yasno.max import keyboard
@@ -71,6 +71,31 @@ async def _start(ctx: BotContext, user: User, args: list[str]) -> Quiz | None:
             case _:
                 return None
         return await quizzes.load_quiz(session, quiz.id, user.id)
+
+
+@router.on(UpdateType.MESSAGE_CREATED, all_of(in_dialog, command("quiz", "test")))
+async def on_quiz_command(update: Update, ctx: BotContext) -> None:
+    if update.actor is None:
+        return
+    user = await ensure_user(ctx, update.actor)
+    if not consent.has_consent(user):
+        await reply(ctx, user.max_user_id, texts.CONSENT_REQUIRED)
+        return
+    today = local_today(ctx.settings.timezone)
+    async with ctx.sessions.begin() as session:
+        created = await quizzes.personal_quiz(session, user, today)
+        quiz = await quizzes.load_quiz(session, created.id, user.id)
+        exam = await session.get(Exam, quiz.exam_id) if quiz.exam_id else None
+    total = len(quiz.items)
+    intro = (
+        texts.QUIZ_STARTED_EXAM.format(
+            when=texts.describe_day(exam.scheduled_on, today), total=total
+        )
+        if exam
+        else texts.QUIZ_STARTED.format(total=total)
+    )
+    await reply(ctx, user.max_user_id, intro)
+    await send_question(ctx, user, quiz)
 
 
 @router.on(UpdateType.MESSAGE_CALLBACK, callback_prefix("quiz"))

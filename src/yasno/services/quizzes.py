@@ -2,7 +2,7 @@ import random
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +12,7 @@ from yasno.db.models import Exam, Mistake, Quiz, QuizItem, QuizReason, QuizStatu
 from yasno.math.display import to_display
 from yasno.math.errors import ERROR_TITLES, ErrorType
 from yasno.math.generators import generate, supported_topics
-from yasno.services import progress
+from yasno.services import exams, progress
 
 EXAM_QUIZ_SIZE = 5
 REVIEW_QUIZ_SIZE = 3
@@ -165,6 +165,14 @@ async def exam_quiz(session: AsyncSession, user: User, exam: Exam) -> Quiz:
     gaps = await progress.weakest_topics(session, user.id, limit=5)
     topics = plan_topics(exam.topic_codes, gaps, user.grade, EXAM_QUIZ_SIZE)
     return await build_quiz(session, user, reason=QuizReason.EXAM, topics=topics, exam=exam)
+
+
+async def personal_quiz(session: AsyncSession, user: User, today: date) -> Quiz:
+    upcoming = await exams.upcoming_for_user(session, user, today)
+    exam = upcoming[0] if upcoming else None
+    gaps = await progress.weakest_topics(session, user.id, limit=5)
+    topics = plan_topics(exam.topic_codes if exam else [], gaps, user.grade, EXAM_QUIZ_SIZE)
+    return await build_quiz(session, user, reason=QuizReason.MANUAL, topics=topics, exam=exam)
 
 
 async def topic_quiz(session: AsyncSession, user: User, topic: str, reason: QuizReason) -> Quiz:

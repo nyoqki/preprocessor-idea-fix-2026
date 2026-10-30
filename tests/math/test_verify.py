@@ -1,3 +1,4 @@
+import multiprocessing
 import time
 from concurrent.futures import ProcessPoolExecutor
 
@@ -312,6 +313,7 @@ def test_adversarial_input_is_time_bounded() -> None:
 
 def test_result_is_picklable_and_runs_in_process_pool() -> None:
     lines = ["5x - 3 = 2x + 9", "3x = 12", "x = 4"]
-    with ProcessPoolExecutor(max_workers=1) as pool:
+    context = multiprocessing.get_context("forkserver")
+    with ProcessPoolExecutor(max_workers=1, mp_context=context) as pool:
         result = pool.submit(verify_solution, lines).result(timeout=60)
     assert result.status is Status.CORRECT

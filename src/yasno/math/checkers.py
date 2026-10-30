@@ -326,11 +326,21 @@ class SetChecker(Checker):
         self.rejected: list[Any] = []
         self.answer_last = False
         self.chain_value: Any = None
+        self.excluded = self._excluded_roots(task)
         self._remember(task)
 
     @property
     def variable_name(self) -> str | None:
         return str(self.variable)
+
+    def _excluded_roots(self, task: Statement) -> list[Any]:
+        if not isinstance(task, Equation):
+            return []
+        numerator, _ = sp.fraction(sp.together(task.lhs - task.rhs))
+        found = limited(lambda: sp.solveset(numerator, self.variable, sp.Reals), 0.4, None)
+        if found is None or not is_finite(found):
+            return []
+        return [value for value in finite_elements(found) if not contains(self.domain, value)]
 
     def _is_variable(self, symbol: Any) -> bool:
         return bool(symbol.is_Symbol) and base_name(symbol) == str(self.variable)
@@ -681,7 +691,9 @@ class SetChecker(Checker):
 
     def _divided(self, missing: list[Any]) -> bool:
         equation = self.last_equation
-        if equation is None:
+        if equation is None or not (
+            equation.lhs.has(self.variable) and equation.rhs.has(self.variable)
+        ):
             return False
         for root in missing:
             left = equation.lhs.xreplace({self.variable: root})
@@ -703,7 +715,17 @@ class SetChecker(Checker):
         elif subset(current, previous) and subset(self.truth, current):
             self.record(index, StepStatus.OK, "transition")
         else:
-            error = self._classify_transition(statement, previous, current)
+            outside = [
+                value
+                for value in finite_elements(new_set)
+                if is_finite(new_set)
+                if not contains(self.domain, value)
+            ]
+            error = (
+                ErrorType.DOMAIN
+                if outside and isinstance(statement, Answer)
+                else self._classify_transition(statement, previous, current)
+            )
             expected = self._latex(previous)
             got = self._latex(current)
             self.fail(index, "transition", error, expected, got)
@@ -805,7 +827,8 @@ class SetChecker(Checker):
         new = finite_elements(current)
         extra = [value for value in new if not any(_numbers_equal(value, item) for item in old)]
         missing = [value for value in old if not any(_numbers_equal(value, item) for item in new)]
-        if extra and all(any(_numbers_equal(-value, item) for item in old) for value in extra):
+        known = [*old, *self.excluded]
+        if extra and all(any(_numbers_equal(-value, item) for item in known) for value in extra):
             return ErrorType.SIGN
         for value in extra:
             for variant, error in self._formula_variants():
@@ -818,7 +841,9 @@ class SetChecker(Checker):
     def _classify_intervals(self, previous: Any, current: Any) -> ErrorType:
         complement = difference(self.domain, previous)
         if same_interior(complement, current):
-            return ErrorType.SIGN
+            boundary = limited(lambda: previous.boundary, 0.3, None)
+            single = boundary is not None and len(finite_elements(boundary)) == 1
+            return ErrorType.INEQUALITY_FLIP if single else ErrorType.SIGN
         if same_interior(previous, current):
             return ErrorType.OTHER
         return ErrorType.ARITHMETIC
@@ -1082,4 +1107,17 @@ class SystemChecker(Checker):
         if self._same_points(points, self.truth):
             self.complete = True
             return
-        self.fail(index, "answer", ErrorType.ARITHMETIC, self.solution, self.final_answer)
+        self.fail(index, "answer", self._classify_points(points), self.solution, self.final_answer)
+
+    def _classify_points(self, points: list[tuple[Any, ...]]) -> ErrorType:
+        if len(points) != 1 or len(self.truth) != 1:
+            return ErrorType.ARITHMETIC
+        given, truth = points[0], self.truth[0]
+        if self._same_points([tuple(reversed(given))], [truth]):
+            return ErrorType.OTHER
+        matches = [
+            _numbers_equal(a, b) or _numbers_equal(-a, b) for a, b in zip(given, truth, strict=True)
+        ]
+        if all(matches):
+            return ErrorType.SIGN
+        return ErrorType.ARITHMETIC

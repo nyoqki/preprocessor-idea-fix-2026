@@ -235,6 +235,30 @@ MISTAKES = [
         ErrorType.ARITHMETIC,
         id="system-arithmetic",
     ),
+    pytest.param(
+        [r"\begin{cases} x+y=5 \\ x-y=1 \end{cases}", "Ответ: (2; 3)"],
+        1,
+        ErrorType.OTHER,
+        id="system-swapped-coordinates",
+    ),
+    pytest.param(
+        [r"\frac{x^2 - 7x + 6}{x - 1} = 0", "Ответ: -6; -1"],
+        1,
+        ErrorType.SIGN,
+        id="rational-roots-negated",
+    ),
+    pytest.param(
+        [r"\frac{x^2 - 7x + 6}{x - 1} = 0", "Ответ: 1; 6"],
+        1,
+        ErrorType.DOMAIN,
+        id="rational-answer-outside-domain",
+    ),
+    pytest.param(
+        ["-3x + 6 \\le 0", "Ответ: x \\in (-\\infty; 2]"],
+        1,
+        ErrorType.INEQUALITY_FLIP,
+        id="inequality-answer-flipped",
+    ),
 ]
 
 

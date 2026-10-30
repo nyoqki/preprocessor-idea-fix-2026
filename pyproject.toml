@@ -9,12 +9,14 @@ dependencies = [
     "certifi>=2025.1",
     "fastapi>=0.120",
     "httpx>=0.28",
+    "latex2sympy2-extended[antlr4-13-2]>=1.11.0",
     "orjson>=3.10",
     "pydantic>=2.11",
     "pydantic-settings>=2.10",
     "redis>=5.2",
     "sqlalchemy[asyncio]>=2.0.40",
     "structlog>=25.1",
+    "sympy>=1.14.0",
     "uvicorn[standard]>=0.35",
 ]
 
@@ -61,7 +63,7 @@ mypy_path = "src"
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["arq.*"]
+module = ["arq.*", "latex2sympy2_extended.*", "mpmath.*", "sympy.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

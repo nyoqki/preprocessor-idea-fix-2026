@@ -4,6 +4,8 @@ annotated-doc==0.0.5
     # via fastapi
 annotated-types==0.8.0
     # via pydantic
+antlr4-python3-runtime==4.13.2
+    # via latex2sympy2-extended
 anyio==4.15.1
     # via
     #   httpx
@@ -42,10 +44,14 @@ idna==3.20
     # via
     #   anyio
     #   httpx
+latex2sympy2-extended==1.11.0
+    # via yasno
 mako==1.4.3
     # via alembic
 markupsafe==3.0.4
     # via mako
+mpmath==1.3.0
+    # via sympy
 opentelemetry-api==1.45.2
     # via fastapi
 orjson==3.13.0
@@ -79,6 +85,10 @@ starlette==1.10.0
     # via fastapi
 structlog==26.1.0
     # via yasno
+sympy==1.14.0
+    # via
+    #   latex2sympy2-extended
+    #   yasno
 typing-extensions==4.16.0
     # via
     #   alembic

@@ -55,8 +55,25 @@ jobs:
       - run: uv run yasno migrate
       - run: uv run pytest
 
+  webapp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+
   image:
-    needs: check
+    needs: [check, webapp]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:

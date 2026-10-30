@@ -12,11 +12,6 @@ class Environment(StrEnum):
     TEST = "test"
 
 
-class UpdatesMode(StrEnum):
-    WEBHOOK = "webhook"
-    POLLING = "polling"
-
-
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -28,7 +23,6 @@ class Settings(BaseSettings):
     max_api_url: AnyHttpUrl = AnyHttpUrl("https://platform-api2.max.ru")
     max_webhook_secret: SecretStr | None = None
     max_extra_ca_file: Path | None = None
-    updates_mode: UpdatesMode = UpdatesMode.WEBHOOK
 
     public_base_url: AnyHttpUrl | None = None
 

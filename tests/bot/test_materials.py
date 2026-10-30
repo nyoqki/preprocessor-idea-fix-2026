@@ -46,3 +46,32 @@ async def test_photo_in_class_chat_becomes_material(
     assert await harness.ctx.storage.exists(material.image_key)
     assert harness.max.downloads == ["https://cdn/notes.jpg"]
     assert len(harness.max.sent) == sent_before
+
+
+async def test_relevant_materials_use_russian_full_text(db_sessions: Sessions) -> None:
+    from yasno.db.models import SchoolClass
+    from yasno.services.materials import relevant_materials
+
+    async with db_sessions.begin() as session:
+        school_class = SchoolClass(title="9А", invite_code="code9a")
+        session.add(school_class)
+        await session.flush()
+        session.add_all(
+            [
+                Material(
+                    class_id=school_class.id,
+                    title="Дискриминант",
+                    content="Дискриминант квадратного уравнения равен b² − 4ac",
+                ),
+                Material(
+                    class_id=school_class.id,
+                    title="Дроби",
+                    content="Сложение дробей с разными знаменателями",
+                ),
+            ]
+        )
+        class_id = school_class.id
+    async with db_sessions() as session:
+        found = await relevant_materials(session, class_id, "как найти дискриминант")
+    assert len(found) == 1
+    assert found[0].startswith("Дискриминант")

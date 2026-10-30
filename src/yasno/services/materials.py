@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import structlog
+from sqlalchemy import Text, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from yasno.ai.tutor import Tutor
@@ -65,3 +66,19 @@ async def ingest_material(
         material_id = material.id
     log.info("material_ingested", class_id=class_id, material_id=material_id, chars=len(text))
     return MaterialResult(material_id, summary.title)
+
+
+async def relevant_materials(
+    session: AsyncSession, class_id: int, query: str, limit: int = 3
+) -> list[str]:
+    document = func.to_tsvector("russian", Material.content)
+    terms = func.to_tsquery(
+        "russian", func.replace(cast(func.plainto_tsquery("russian", query), Text), "&", "|")
+    )
+    result = await session.execute(
+        select(Material.title, Material.content)
+        .where(Material.class_id == class_id, document.op("@@")(terms))
+        .order_by(func.ts_rank(document, terms).desc())
+        .limit(limit)
+    )
+    return [f"{title or 'Конспект'}\n{content[:1500]}" for title, content in result.all()]

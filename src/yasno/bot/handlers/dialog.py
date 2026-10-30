@@ -9,7 +9,7 @@ from yasno.clock import local_today
 from yasno.db.models import ExamSource, User
 from yasno.max import keyboard
 from yasno.max.types import Update, UpdateType
-from yasno.services import exams
+from yasno.services import exams, materials
 
 router = Router()
 
@@ -99,7 +99,13 @@ async def _answer_question(update: Update, ctx: BotContext, user: User) -> None:
         await reply(ctx, user.max_user_id, texts.QUESTION_LIMIT)
         return
     await ctx.max.send_action(update.message.chat_id or user.max_user_id)
-    answer = await ctx.tutor.answer_question(update.message.text, [], user.grade or 9)
+    context: list[str] = []
+    if user.class_id is not None:
+        async with ctx.sessions() as session:
+            context = await materials.relevant_materials(
+                session, user.class_id, update.message.text
+            )
+    answer = await ctx.tutor.answer_question(update.message.text, context, user.grade or 9)
     await reply(ctx, user.max_user_id, answer)
 
 

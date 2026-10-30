@@ -6,7 +6,7 @@ from typing import Any
 import sympy as sp
 from sympy.calculus.util import continuous_domain
 
-from yasno.math.limits import MAX_DEGREE, MathTimeout, limited, time_limit
+from yasno.math.limits import MAX_DEGREE, MathTimeout, limited, reraise_if_expired, time_limit
 from yasno.math.parsing import Op, relational
 
 TOLERANCE = 1e-9
@@ -150,11 +150,12 @@ def solve_equation(lhs: Any, rhs: Any, variable: Any) -> Any:
             result = sp.solveset(expr, variable, domain)
         return _clean(result, domain)
     except (MathTimeout, Unsupported, NotImplementedError, ValueError, TypeError):
-        pass
+        reraise_if_expired()
     try:
         with time_limit(0.8):
             return sp.FiniteSet(*numeric_roots(expr, variable, domain))
     except MathTimeout as exc:
+        reraise_if_expired()
         raise Unsupported from exc
 
 
@@ -220,11 +221,12 @@ def _solve_relation(left: Any, op: Op, right: Any, variable: Any, domain: Any) -
         with time_limit(1.0):
             return _clean(sp.solveset(relational(left, op, right), variable, domain), domain)
     except (MathTimeout, Unsupported, NotImplementedError, ValueError, TypeError):
-        pass
+        reraise_if_expired()
     try:
         with time_limit(0.8):
             return _sign_method(expr, op, variable, domain)
     except MathTimeout as exc:
+        reraise_if_expired()
         raise Unsupported from exc
 
 
@@ -251,6 +253,7 @@ def solve_system(equations: Sequence[tuple[Any, Any]], variables: Sequence[Any])
         with time_limit(1.2):
             solutions = sp.solve(exprs, list(variables), dict=True)
     except (MathTimeout, NotImplementedError, ValueError, TypeError) as exc:
+        reraise_if_expired()
         raise Unsupported from exc
     points = []
     for solution in solutions:

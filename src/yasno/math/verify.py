@@ -246,5 +246,5 @@ def verify_solution(lines: Sequence[str], task: str | None = None) -> Verificati
             return _run(lines, task)
     except MathTimeout:
         return Verification(status=Status.UNSUPPORTED, problem_kind=ProblemKind.UNKNOWN)
-    except (RecursionError, MemoryError, Exception):
+    except Exception:
         return Verification(status=Status.UNSUPPORTED, problem_kind=ProblemKind.UNKNOWN)

@@ -12,6 +12,14 @@ MAX_EXPONENT_BITS = 4000
 MAX_INTEGER_DIGITS = 15
 
 
+class _State(threading.local):
+    def __init__(self) -> None:
+        self.deadlines: list[float] = []
+
+
+_state = _State()
+
+
 class MathTimeout(BaseException):
     pass
 
@@ -35,32 +43,50 @@ def _raise_timeout(signum: int, frame: FrameType | None) -> None:
     raise MathTimeout
 
 
+def expired() -> bool:
+    return bool(_state.deadlines) and time.monotonic() >= _state.deadlines[-1]
+
+
+def reraise_if_expired() -> None:
+    if expired():
+        raise MathTimeout
+
+
 @contextmanager
 def time_limit(seconds: float) -> Iterator[None]:
-    if seconds <= 0:
+    now = time.monotonic()
+    end = now + seconds
+    if _state.deadlines:
+        end = min(end, _state.deadlines[-1])
+    if end <= now:
         raise MathTimeout
-    if not _can_use_alarm():
-        yield
-        return
-    previous_delay, _ = signal.getitimer(signal.ITIMER_REAL)
-    started = time.monotonic()
-    if 0 < previous_delay < seconds:
-        seconds = previous_delay
-    previous_handler = signal.signal(signal.SIGALRM, _raise_timeout)
-    signal.setitimer(signal.ITIMER_REAL, seconds)
+    alarm = _can_use_alarm()
+    previous_handler = signal.signal(signal.SIGALRM, _raise_timeout) if alarm else None
+    _state.deadlines.append(end)
+    if alarm:
+        signal.setitimer(signal.ITIMER_REAL, end - now)
     try:
         yield
     finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous_handler)
-        if previous_delay > 0:
-            left = previous_delay - (time.monotonic() - started)
-            signal.setitimer(signal.ITIMER_REAL, max(left, 0.001))
+        _state.deadlines.pop()
+        if alarm:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous_handler)
+            if _state.deadlines:
+                signal.setitimer(
+                    signal.ITIMER_REAL, max(_state.deadlines[-1] - time.monotonic(), 0.001)
+                )
 
 
 def limited[T](func: Callable[[], T], seconds: float, default: T) -> T:
     try:
         with time_limit(seconds):
             return func()
-    except (MathTimeout, Exception):
+    except MathTimeout:
+        if expired():
+            raise
+        return default
+    except Exception:
+        if expired():
+            raise MathTimeout from None
         return default

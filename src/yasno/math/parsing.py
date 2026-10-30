@@ -21,6 +21,7 @@ from yasno.math.limits import (
     MAX_INTEGER_DIGITS,
     MAX_NODES,
     MathTimeout,
+    reraise_if_expired,
     time_limit,
 )
 
@@ -914,6 +915,7 @@ def parse_line(text: str) -> Statement:
         with time_limit(2.0):
             return _parse(text)
     except MathTimeout:
+        reraise_if_expired()
         return Unparseable("timeout")
     except ParseRejected as exc:
         return Unparseable(exc.reason)
@@ -939,7 +941,10 @@ def parse_expression(text: str) -> Any | None:
     try:
         with time_limit(2.0):
             value, _ = _parse_pair(_normalize(text))
-    except (MathTimeout, ParseRejected):
+    except MathTimeout:
+        reraise_if_expired()
+        return None
+    except ParseRejected:
         return None
     except Exception:
         return None

@@ -165,6 +165,7 @@ class ExpressionChecker(Checker):
         if not parts:
             raise Unsupported
         self.current, self.current_raw, self.first = parts[0], raws[0], parts[0]
+        self.solution = to_latex(simplified(self.first))
         if chained:
             for part, raw in zip(parts[1:], raws[1:], strict=True):
                 self._compare(start.index, part, raw)
@@ -205,7 +206,6 @@ class ExpressionChecker(Checker):
     def finish(self) -> None:
         self.complete = self.worked
         self.final_answer = to_latex(self.current)
-        self.solution = to_latex(simplified(self.first))
 
 
 def _expression_parts(statement: Statement) -> tuple[list[Any], list[Any]]:
@@ -227,6 +227,7 @@ class DerivativeChecker(Checker):
         self.variable = variable
         self.function = function
         self.expected = sp.diff(function, variable)
+        self.solution = to_latex(simplified(self.expected))
         self.current: Any = None
 
     def _compare(self, index: int, expr: Any) -> None:
@@ -276,7 +277,6 @@ class DerivativeChecker(Checker):
     def finish(self) -> None:
         self.complete = self.current is not None
         self.final_answer = to_latex(self.current) if self.current is not None else None
-        self.solution = to_latex(simplified(self.expected))
 
     @property
     def variable_name(self) -> str | None:
@@ -315,6 +315,7 @@ class SetChecker(Checker):
             raise Unsupported
         self.truth = restrict(task_set, self.domain)
         self.current: Any = task_set
+        self.solution = self._latex(self.truth)
         self.current_statement: Statement | None = task
         self.last_equation: Equation | None = task if isinstance(task, Equation) else None
         self.aux: Any = critical_points(_parts_of(task), variable) if inequality else None
@@ -890,7 +891,6 @@ class SetChecker(Checker):
             self._flush_run()
         if self.error is not None:
             return
-        self.solution = self._latex(self.truth)
         if self.answer is None or not self.answer_last:
             return
         index, values = self.answer
@@ -932,6 +932,7 @@ class SystemChecker(Checker):
         self.truth = solve_system([(e.lhs, e.rhs) for e in equations], self.variables)
         self.history: list[Equation] = list(equations)
         self.values: dict[Any, Any] = {}
+        self.solution = self._points_latex(self.truth)
         self.answer: tuple[int, list[tuple[Any, ...]]] | None = None
         self.answer_last = False
 
@@ -1068,7 +1069,6 @@ class SystemChecker(Checker):
     def finish(self) -> None:
         if self.error is not None:
             return
-        self.solution = self._points_latex(self.truth)
         points: list[tuple[Any, ...]] | None = None
         index = -1
         if self.answer is not None and self.answer_last:

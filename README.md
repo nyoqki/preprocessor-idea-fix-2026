@@ -24,13 +24,13 @@
 | `redis` | очередь задач и короткоживущие состояния диалога |
 | `caddy` | HTTPS с автоматическим сертификатом (профиль `public`) |
 
-ИИ — только российские провайдеры: Yandex AI Studio (основной) и GigaChat (резервный), с автоматическим переключением.
+ИИ-провайдеры: Yandex AI Studio, GigaChat и любой сервис с OpenAI-совместимым API (DeepSeek, OpenRouter, локальные Ollama, llama.cpp, vLLM). Порядок задаётся в `AI_PROVIDER_ORDER`, при сбое запрос уходит следующему.
 
 ## Требования
 
 - Docker 24+ с Compose v2
 - Домен, указывающий на сервер, открытые порты 80 и 443
-- Токен бота MAX, ключи Yandex AI Studio и/или GigaChat
+- Токен бота MAX, ключи Yandex AI Studio, GigaChat или OpenAI-совместимого сервиса
 
 ## Запуск через Docker Compose
 
@@ -45,6 +45,20 @@ docker compose exec api yasno webhook set
 ```
 
 Миграции базы применяются автоматически сервисом `migrate` перед стартом `api` и `worker`.
+
+Пример для DeepSeek (текст) и модели с распознаванием изображений через OpenRouter:
+
+```bash
+AI_PROVIDER_ORDER=openai
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+OPENAI_API_KEY=sk-...
+OPENAI_CHAT_MODEL=deepseek-chat
+OPENAI_VISION_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_VISION_API_KEY=sk-or-...
+OPENAI_VISION_MODEL=qwen/qwen2.5-vl-72b-instruct
+```
+
+Локально через Ollama: `OPENAI_BASE_URL=http://localhost:11434/v1`, `OPENAI_CHAT_MODEL=qwen3:8b`, `OPENAI_VISION_MODEL=qwen2.5vl:7b`, ключ не нужен.
 
 ## Сборка и запуск контейнера
 
@@ -99,6 +113,9 @@ webhook: https://yasno.example.ru/webhook/max types=['message_created', 'message
 | `YANDEX_API_KEY`, `YANDEX_FOLDER_ID` | доступ к Yandex AI Studio |
 | `YANDEX_CHAT_MODEL`, `YANDEX_VISION_MODEL`, `YANDEX_OCR_MODEL` | модели Yandex |
 | `GIGACHAT_CREDENTIALS`, `GIGACHAT_SCOPE`, `GIGACHAT_MODEL` | доступ к GigaChat |
+| `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_CHAT_MODEL` | OpenAI-совместимый сервис для текста |
+| `OPENAI_JSON_MODE` | `object`, `schema` или `off` — как запрашивать JSON у модели |
+| `OPENAI_VISION_MODEL`, `OPENAI_VISION_BASE_URL`, `OPENAI_VISION_API_KEY` | модель для распознавания фото, можно на другом сервисе |
 | `AI_FAKE` | `true` — детерминированные заглушки вместо ИИ (разработка) |
 
 Полный список — в `src/yasno/config.py`.
@@ -134,4 +151,4 @@ npm run dev:mock
 
 ## Данные
 
-Фото работ и карта пробелов — персональные данные ребёнка. Они хранятся на сервере в России и обрабатываются только российскими ИИ-провайдерами. Перед первым разбором бот запрашивает согласие, а для детей младше 14 лет — согласие родителя. Учитель видит только анонимную статистику класса. Команда `/delete` удаляет все данные ученика.
+Фото работ и карта пробелов — персональные данные ребёнка. Для эксплуатации со школьниками сервер должен находиться в России, а ИИ — российский провайдер или локальная модель: зарубежные сервисы допустимы только для разработки и демонстрации. Перед первым разбором бот запрашивает согласие, а для детей младше 14 лет — согласие родителя. Учитель видит только анонимную статистику класса. Команда `/delete` удаляет все данные ученика.

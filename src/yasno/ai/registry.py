@@ -4,9 +4,11 @@ from dataclasses import dataclass, field
 
 import httpx
 import structlog
+from pydantic import SecretStr
 
 from yasno.ai.fakes import FakeChat, FakeEmbedder, FakeOcr, FakeVision
 from yasno.ai.gigachat import GigaChatChat, GigaChatClient, GigaChatVision
+from yasno.ai.openai_compat import OpenAICompatChat, OpenAICompatClient, OpenAICompatVision
 from yasno.ai.resilience import (
     FallbackChat,
     FallbackVision,
@@ -23,7 +25,7 @@ from yasno.max.tls import build_ssl_context
 
 log = structlog.get_logger(__name__)
 
-KNOWN_PROVIDERS = ("yandex", "gigachat")
+KNOWN_PROVIDERS = ("yandex", "gigachat", "openai")
 
 
 class AiConfigurationError(RuntimeError):
@@ -34,7 +36,7 @@ class AiConfigurationError(RuntimeError):
 class ProviderSet:
     name: str
     chat: ChatModel
-    vision: VisionModel
+    vision: VisionModel | None
     ocr: OcrEngine | None = None
     embedder: Embedder | None = None
     close: Callable[[], Awaitable[None]] | None = None
@@ -64,7 +66,9 @@ def _missing(settings: Settings, name: str) -> list[str]:
             )
             if not value
         ]
-    return [] if settings.gigachat_credentials else ["GIGACHAT_CREDENTIALS"]
+    if name == "gigachat":
+        return [] if settings.gigachat_credentials else ["GIGACHAT_CREDENTIALS"]
+    return []
 
 
 def _yandex(
@@ -121,6 +125,50 @@ def _gigachat(
     )
 
 
+def _secret(value: SecretStr | None) -> str | None:
+    return value.get_secret_value() if value else None
+
+
+def _openai(
+    settings: Settings,
+    transport: httpx.AsyncBaseTransport | None,
+    verify: ssl.SSLContext | bool,
+) -> ProviderSet:
+    def client(url: str, key: str | None) -> OpenAICompatClient:
+        return OpenAICompatClient(
+            url,
+            key,
+            json_mode=settings.openai_json_mode,
+            timeout=settings.ai_timeout_seconds,
+            transport=transport,
+            verify=verify,
+        )
+
+    chat_client = client(str(settings.openai_base_url), _secret(settings.openai_api_key))
+    clients = [chat_client]
+    vision = None
+    if settings.openai_vision_model:
+        vision_client = chat_client
+        if settings.openai_vision_base_url is not None:
+            vision_client = client(
+                str(settings.openai_vision_base_url),
+                _secret(settings.openai_vision_api_key or settings.openai_api_key),
+            )
+            clients.append(vision_client)
+        vision = OpenAICompatVision(vision_client, settings.openai_vision_model)
+
+    async def close() -> None:
+        for item in clients:
+            await item.aclose()
+
+    return ProviderSet(
+        name="openai",
+        chat=OpenAICompatChat(chat_client, settings.openai_chat_model),
+        vision=vision,
+        close=close,
+    )
+
+
 def build_provider_sets(
     settings: Settings,
     *,
@@ -144,7 +192,7 @@ def build_provider_sets(
             + "); set them, remove the provider from AI_PROVIDER_ORDER or set AI_FAKE=true"
         )
     context = verify if verify is not None else build_ssl_context()
-    builders = {"yandex": _yandex, "gigachat": _gigachat}
+    builders = {"yandex": _yandex, "gigachat": _gigachat, "openai": _openai}
     return [builders[name](settings, transport, context) for name in dict.fromkeys(order)]
 
 
@@ -166,8 +214,13 @@ def build_ai(
         failures=settings.ai_breaker_failures,
         cooldown=settings.ai_breaker_cooldown_seconds,
     )
+    readers = [item.vision for item in sets if item.vision is not None]
+    if not readers:
+        raise AiConfigurationError(
+            "no AI provider can read photos: set OPENAI_VISION_MODEL or add yandex/gigachat"
+        )
     vision = FallbackVision(
-        [ResilientVision(item.vision, policy) for item in sets],
+        [ResilientVision(reader, policy) for reader in readers],
         failures=settings.ai_breaker_failures,
         cooldown=settings.ai_breaker_cooldown_seconds,
     )

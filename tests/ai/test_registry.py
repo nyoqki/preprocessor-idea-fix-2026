@@ -33,8 +33,8 @@ def test_missing_keys_are_reported_clearly() -> None:
 
 
 def test_unknown_provider_is_rejected() -> None:
-    with pytest.raises(AiConfigurationError, match="openai"):
-        build_ai(settings(ai_provider_order="yandex,openai"))
+    with pytest.raises(AiConfigurationError, match="mistral"):
+        build_ai(settings(ai_provider_order="yandex,mistral"))
 
 
 async def test_builds_chain_in_configured_order() -> None:

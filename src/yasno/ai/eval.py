@@ -121,7 +121,7 @@ def vision_models(settings: Settings) -> tuple[list[VisionModel], list[Any]]:
         return [FakeVision()], []
     sets = build_provider_sets(settings)
     policy = RetryPolicy(attempts=settings.ai_max_attempts, timeout=settings.ai_timeout_seconds)
-    return [ResilientVision(item.vision, policy) for item in sets], sets
+    return [ResilientVision(item.vision, policy) for item in sets if item.vision], sets
 
 
 async def run(directory: Path, settings: Settings) -> list[ProviderScore]:

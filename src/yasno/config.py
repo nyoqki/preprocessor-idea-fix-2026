@@ -1,6 +1,7 @@
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import AnyHttpUrl, Field, PostgresDsn, RedisDsn, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -61,6 +62,14 @@ class Settings(BaseSettings):
     gigachat_vision_model: str | None = None
     gigachat_base_url: AnyHttpUrl = AnyHttpUrl("https://api.giga.chat/v1")
     gigachat_auth_url: AnyHttpUrl = AnyHttpUrl("https://ngw.devices.sberbank.ru:9443/api/v2/oauth")
+
+    openai_base_url: AnyHttpUrl = AnyHttpUrl("https://api.deepseek.com/v1")
+    openai_api_key: SecretStr | None = None
+    openai_chat_model: str = "deepseek-chat"
+    openai_json_mode: Literal["schema", "object", "off"] = "object"
+    openai_vision_model: str | None = None
+    openai_vision_base_url: AnyHttpUrl | None = None
+    openai_vision_api_key: SecretStr | None = None
 
     @property
     def ai_providers(self) -> list[str]:

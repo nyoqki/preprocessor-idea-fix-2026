@@ -52,7 +52,7 @@ docker compose exec api yasno webhook set
 AI_PROVIDER_ORDER=openai
 OPENAI_BASE_URL=https://api.deepseek.com/v1
 OPENAI_API_KEY=sk-...
-OPENAI_CHAT_MODEL=deepseek-chat
+OPENAI_CHAT_MODEL=deepseek-v4-flash
 OPENAI_VISION_BASE_URL=https://openrouter.ai/api/v1
 OPENAI_VISION_API_KEY=sk-or-...
 OPENAI_VISION_MODEL=qwen/qwen2.5-vl-72b-instruct

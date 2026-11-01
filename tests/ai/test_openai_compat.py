@@ -35,12 +35,12 @@ async def client() -> AsyncIterator[OpenAICompatClient]:
 @respx.mock
 async def test_chat_uses_bearer_key_and_json_object(client: OpenAICompatClient) -> None:
     route = respx.post(f"{BASE}/chat/completions").respond(json=completion('{"a": 1}'))
-    text = await OpenAICompatChat(client, "deepseek-chat").complete(MESSAGES, json_schema=SCHEMA)
+    text = await OpenAICompatChat(client, "deepseek-v4-flash").complete(MESSAGES, json_schema=SCHEMA)
     assert text == '{"a": 1}'
     request = route.calls.last.request
     assert request.headers["Authorization"] == "Bearer sk-test"
     body = orjson.loads(request.content)
-    assert body["model"] == "deepseek-chat"
+    assert body["model"] == "deepseek-v4-flash"
     assert body["response_format"] == {"type": "json_object"}
 
 
@@ -94,7 +94,7 @@ async def test_registry_builds_split_chat_and_vision_endpoints() -> None:
         verify=False,
     )
     assert isinstance(services.chat, FallbackChat)
-    assert services.chat.name.startswith("openai:deepseek-chat")
+    assert services.chat.name.startswith("openai:deepseek-v4-flash")
     assert services.vision is not None
     assert services.vision.name == "openai:qwen/qwen2.5-vl-72b-instruct"
     assert services.ocr is None

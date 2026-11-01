@@ -65,7 +65,7 @@ class Settings(BaseSettings):
 
     openai_base_url: AnyHttpUrl = AnyHttpUrl("https://api.deepseek.com/v1")
     openai_api_key: SecretStr | None = None
-    openai_chat_model: str = "deepseek-chat"
+    openai_chat_model: str = "deepseek-v4-flash"
     openai_json_mode: Literal["schema", "object", "off"] = "object"
     openai_vision_model: str | None = None
     openai_vision_base_url: AnyHttpUrl | None = None

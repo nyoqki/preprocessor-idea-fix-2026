@@ -65,7 +65,7 @@ async def test_sign_error_is_found_explained_and_recorded(
     await harness.feed(photo_message())
     texts = harness.max.texts_to(100)
     assert texts[0] == "Смотрю решение…"
-    assert texts[-1].startswith("Смотри на строку 2: 2x = 7 + 3")
+    assert texts[-1].startswith("Строка 2: 2x = 7 + 3")
     assert "x = 5" not in texts[-1]
     assert harness.max.buttons()[0]["type"] == "open_app"
     assert harness.max.buttons()[0]["payload"].startswith("submission_")
@@ -108,7 +108,7 @@ async def test_doubtful_line_is_confirmed_then_fixed(
     assert fix.startswith("sub:fix:")
     await harness.feed(factories.callback(fix, callback_id="f1"))
     await harness.feed(factories.dialog_message("2: 2x = 10", mid="t1"))
-    assert harness.max.texts_to(100)[-1].startswith("Смотри на строку 2: 2x = 10")
+    assert harness.max.texts_to(100)[-1].startswith("Строка 2: 2x = 10")
 
 
 async def test_same_photo_is_not_analyzed_twice(harness: Harness, db_sessions: Sessions) -> None:
@@ -139,3 +139,37 @@ async def test_followup_text_continues_the_dialog(harness: Harness, db_sessions:
     assert harness.max.texts_to(100)[-1].startswith("Верно, при переносе")
     last_call = harness.chat.calls[-1]
     assert any("2x = 7 + 3" in m.content for m in last_call)
+
+
+async def test_followup_remembers_previous_turns(harness: Harness, db_sessions: Sessions) -> None:
+    await consented_user(db_sessions)
+    await harness.feed(photo_message())
+    harness.chat.push("Какой знак станет у 3 после переноса?", "Верно! Что дальше?")
+    await harness.feed(factories.dialog_message("не понимаю", mid="q1"))
+    await harness.feed(factories.dialog_message("плюс", mid="q2"))
+    contents = [m.content for m in harness.chat.calls[-1]]
+    assert any(c.startswith("Строка 2:") for c in contents)
+    assert "не понимаю" in contents
+    assert "Какой знак станет у 3 после переноса?" in contents
+    assert contents[-1] == "плюс"
+
+
+async def test_new_photo_starts_a_fresh_dialog(harness: Harness, db_sessions: Sessions) -> None:
+    await consented_user(db_sessions)
+    await harness.feed(photo_message())
+    await harness.feed(factories.dialog_message("не понимаю", mid="q1"))
+    harness.max.image = harness.max.image + b"\x00"
+    await harness.feed(photo_message("ph2"))
+    await harness.feed(factories.dialog_message("а теперь?", mid="q2"))
+    assert "не понимаю" not in [m.content for m in harness.chat.calls[-1]]
+
+
+async def test_photo_without_math_gets_its_own_reply(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    await consented_user(db_sessions)
+    vision = harness.ctx.tutor.vision
+    assert isinstance(vision, FakeVision)
+    vision.result = Transcription(is_math=False)
+    await harness.feed(photo_message())
+    assert harness.max.texts_to(100)[-1].startswith("На фото не вижу решения")

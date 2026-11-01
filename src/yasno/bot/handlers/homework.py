@@ -2,8 +2,8 @@ import re
 
 import structlog
 
-from yasno.ai.types import ProviderError
-from yasno.bot import texts
+from yasno.ai.types import ChatMessage, ProviderError, Role
+from yasno.bot import memory, texts
 from yasno.bot.common import Rows, callback_args, ensure_user, open_app_row, reply
 from yasno.bot.context import BotContext
 from yasno.bot.handlers.start import continue_onboarding
@@ -77,6 +77,8 @@ async def present(ctx: BotContext, user: User, analysis: Analysis) -> None:
             await reply(ctx, user.max_user_id, texts.CONFIRM_LINES.format(lines=listing), [buttons])
         case Verdict.UNREADABLE:
             await reply(ctx, user.max_user_id, texts.UNREADABLE)
+        case Verdict.NOT_MATH:
+            await reply(ctx, user.max_user_id, texts.NOT_MATH)
         case Verdict.CORRECT:
             text = (
                 texts.VERDICT_CORRECT.format(topic=topic_title(analysis.topic_code))
@@ -98,6 +100,7 @@ async def present(ctx: BotContext, user: User, analysis: Analysis) -> None:
                 hint=analysis.hint.message,
             )
             await ctx.redis.set(_followup_key(user), str(submission_id), ex=STATE_TTL_SECONDS)
+            await memory.remember(ctx, user, ChatMessage(role=Role.ASSISTANT, content=text))
             await reply(ctx, user.max_user_id, text, rows)
         case Verdict.INCOMPLETE:
             await reply(ctx, user.max_user_id, texts.VERDICT_INCOMPLETE, rows)
@@ -150,6 +153,7 @@ async def on_photo(update: Update, ctx: BotContext) -> None:
         )
         return
     await ctx.redis.delete(_followup_key(user), _fix_key(user))
+    await memory.forget(ctx, user)
     try:
         analysis = await transcribe(deps(ctx), submission.id, image, content_type)
     except ProviderError as exc:
@@ -219,8 +223,9 @@ async def handle_pending_text(update: Update, ctx: BotContext, user: User) -> bo
     context = [
         f"Задача: {stored.task or 'не указана'}",
         "Решение ученика:\n" + "\n".join(f"{line.index}. {line.latex}" for line in stored.lines),
-        f"Твоя подсказка ученику: {submission.analysis.get('hint') or ''}",
     ]
-    answer = await ctx.tutor.answer_question(text, context, user.grade or 9)
+    history = await memory.load(ctx, user)
+    answer = await ctx.tutor.answer_question(text, context, user.grade or 9, history)
+    await memory.remember_exchange(ctx, user, text, answer)
     await reply(ctx, user.max_user_id, answer, [_review_row(ctx, submission_id)])
     return True

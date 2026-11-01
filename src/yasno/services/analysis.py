@@ -47,6 +47,7 @@ class Verdict(StrEnum):
     REVIEW = "review"
     CONFIRM = "confirm"
     UNREADABLE = "unreadable"
+    NOT_MATH = "not_math"
     UNSUPPORTED_FORMAT = "unsupported_format"
 
 
@@ -179,14 +180,19 @@ async def transcribe(
         raise
     lines = math_lines(transcription)
     if transcription.illegible or not transcription.is_math or not lines:
+        verdict = (
+            Verdict.NOT_MATH
+            if not transcription.is_math and not transcription.illegible
+            else Verdict.UNREADABLE
+        )
         await _save(
             deps,
             submission_id,
             SubmissionStatus.FAILED,
             transcription=transcription,
-            analysis={"status": Verdict.UNREADABLE.value},
+            analysis={"status": verdict.value},
         )
-        return Analysis(Verdict.UNREADABLE, submission_id)
+        return Analysis(verdict, submission_id)
     doubtful = doubtful_lines(lines)
     status = SubmissionStatus.NEEDS_CONFIRMATION if doubtful else SubmissionStatus.PROCESSING
     await _save(deps, submission_id, status, transcription=transcription)

@@ -1,5 +1,5 @@
 from yasno.ai.exams import looks_like_exam_announcement
-from yasno.bot import texts
+from yasno.bot import memory, texts
 from yasno.bot.common import callback_args, ensure_user, reply
 from yasno.bot.context import BotContext
 from yasno.bot.handlers.homework import handle_pending_text
@@ -93,7 +93,9 @@ async def _answer_question(update: Update, ctx: BotContext, user: User) -> None:
             context = await materials.relevant_materials(
                 session, user.class_id, update.message.text
             )
-    answer = await ctx.tutor.answer_question(update.message.text, context, user.grade or 9)
+    history = await memory.load(ctx, user)
+    answer = await ctx.tutor.answer_question(update.message.text, context, user.grade or 9, history)
+    await memory.remember_exchange(ctx, user, update.message.text, answer)
     await reply(ctx, user.max_user_id, answer)
 
 

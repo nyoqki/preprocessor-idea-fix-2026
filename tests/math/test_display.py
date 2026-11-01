@@ -1,6 +1,6 @@
 import pytest
 
-from yasno.math.display import to_display
+from yasno.math.display import humanize_math, to_display
 
 
 @pytest.mark.parametrize(
@@ -40,3 +40,17 @@ def test_to_display(latex: str, expected: str) -> None:
 def test_display_never_fails_on_broken_latex() -> None:
     for broken in [r"\frac{1}{", "x^{", r"\sqrt[3", "}{", "\\"]:
         assert isinstance(to_display(broken), str)
+
+
+def test_humanize_math_replaces_latex_delimiters() -> None:
+    text = (
+        "### Шаг\nЕсли $b = -5$, то $-b = -(-5) = 5$. "
+        "Формула: $$x=\\frac{-b\\pm\\sqrt{D}}{2a}$$, \\(x_1\\)."
+    )
+    assert humanize_math(text) == (
+        "Шаг\nЕсли b = −5, то −b = −(−5) = 5. Формула: x = (−b ± √D)/(2a), x₁."
+    )
+
+
+def test_humanize_math_keeps_plain_text() -> None:
+    assert humanize_math("Сколько будет 4 · 2?") == "Сколько будет 4 · 2?"

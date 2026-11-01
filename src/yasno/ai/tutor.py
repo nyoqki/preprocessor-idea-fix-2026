@@ -31,6 +31,7 @@ from yasno.ai.types import (
     Transcription,
     VisionModel,
 )
+from yasno.math.display import humanize_math
 from yasno.math.errors import ERROR_TITLES, ErrorType
 from yasno.math.topics import TOPICS, TOPICS_BY_CODE
 
@@ -59,6 +60,11 @@ class Hint(BaseModel):
     @property
     def message(self) -> str:
         return f"{self.text}\n\n{self.question}".strip()
+
+    def humanized(self) -> "Hint":
+        return self.model_copy(
+            update={"text": humanize_math(self.text), "question": humanize_math(self.question)}
+        )
 
 
 class TopicGuess(BaseModel):
@@ -274,7 +280,7 @@ class Tutor:
             if not hint.text or not hint.question:
                 continue
             if not self._leaks(hint, banned, leak_check):
-                return hint
+                return hint.humanized()
             log.warning("ai_hint_leak", attempt=attempt + 1, error_type=error_type.value)
         return self.safe_hint(first_error_step, error_type)
 
@@ -312,7 +318,7 @@ class Tutor:
                 break
             hint = Hint(text=reply.text.strip(), question=_question(reply.question))
             if hint.text and hint.question and not _ASSERTIVE.search(hint.message):
-                return hint
+                return hint.humanized()
             log.warning("ai_soft_review_rejected")
         return Hint(
             text=prompts.SAFE_SOFT_TEXT, question=prompts.SAFE_SOFT_QUESTION, safe_fallback=True
@@ -371,7 +377,13 @@ class Tutor:
             topic_codes=_known_topics(reply.topic_codes),
         )
 
-    async def answer_question(self, question: str, materials: Sequence[str], grade: int) -> str:
+    async def answer_question(
+        self,
+        question: str,
+        materials: Sequence[str],
+        grade: int,
+        history: Sequence[ChatMessage] = (),
+    ) -> str:
         system = prompts.ANSWER_SYSTEM.format(persona=prompts.TUTOR_PERSONA.format(grade=grade))
         messages = [ChatMessage(role=Role.SYSTEM, content=system)]
         context = self._materials(materials)
@@ -381,13 +393,14 @@ class Tutor:
                     role=Role.SYSTEM, content=prompts.ANSWER_MATERIALS.format(materials=context)
                 )
             )
+        messages.extend(history)
         messages.append(ChatMessage(role=Role.USER, content=question))
         try:
-            answer = await self.chat.complete(messages, temperature=0.4, max_tokens=700)
+            answer = await self.chat.complete(messages, temperature=0.4, max_tokens=600)
         except ProviderError as exc:
             log.warning("ai_answer_failed", error=str(exc))
             return prompts.ANSWER_UNAVAILABLE
-        return answer.strip() or prompts.ANSWER_UNAVAILABLE
+        return humanize_math(answer) or prompts.ANSWER_UNAVAILABLE
 
     def _materials(self, materials: Sequence[str]) -> str:
         budget = self._max_material_chars

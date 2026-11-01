@@ -233,3 +233,14 @@ def _tidy(text: str) -> str:
 def to_display(latex: str) -> str:
     text = latex.strip().strip("$")
     return _tidy(_convert(text))
+
+
+_INLINE_MATH = re.compile(r"\$\$(.+?)\$\$|\$(.+?)\$|\\\((.+?)\\\)|\\\[(.+?)\\\]", re.DOTALL)
+_HEADING = re.compile(r"^#{1,6}\s*", re.MULTILINE)
+
+
+def humanize_math(text: str) -> str:
+    def convert(match: re.Match[str]) -> str:
+        return to_display(next(group for group in match.groups() if group is not None))
+
+    return _HEADING.sub("", _INLINE_MATH.sub(convert, text)).strip()

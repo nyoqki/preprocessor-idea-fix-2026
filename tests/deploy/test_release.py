@@ -1,3 +1,4 @@
+import json
 import subprocess
 from pathlib import Path
 from typing import BinaryIO
@@ -175,3 +176,22 @@ def test_stopped_worker_does_not_count_as_a_successful_release(
     assert docker.restored
     assert docker.images == docker.original
     assert not (config.root / ".deploy/current.json").exists()
+
+
+def test_registry_credentials_accept_long_opaque_github_tokens() -> None:
+    token = "v1." + "a-b_c.d=" * 200
+    credentials = release.parse_credentials(
+        json.dumps({"registry_user": "example-user", "registry_token": token}).encode()
+    )
+    assert credentials.token == token
+    assert token not in repr(credentials)
+
+
+@pytest.mark.parametrize("suffix", ["\nother-password", "\r", "\x00", " "])
+def test_registry_credentials_reject_control_characters_and_whitespace(suffix: str) -> None:
+    with pytest.raises(ValueError, match="Invalid registry credential"):
+        release.parse_credentials(
+            json.dumps(
+                {"registry_user": "example-user", "registry_token": "x" * 40 + suffix}
+            ).encode()
+        )

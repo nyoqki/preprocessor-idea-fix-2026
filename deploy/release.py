@@ -49,7 +49,14 @@ def parse_credentials(data: bytes) -> Credentials:
     user, token = body.get("registry_user"), body.get("registry_token")
     if not isinstance(user, str) or not re.fullmatch(r"[A-Za-z0-9_\[\]-]{1,128}", user):
         raise ValueError("Invalid registry user")
-    if not isinstance(token, str) or not re.fullmatch(r"[A-Za-z0-9_]{20,512}", token):
+    # Registry credentials are opaque. GitHub can change their length and alphabet.
+    # Only bound the payload and reject controls/whitespace before password-stdin.
+    if (
+        not isinstance(token, str)
+        or not 20 <= len(token) <= 8192
+        or not token.isascii()
+        or any(not 33 <= ord(character) <= 126 for character in token)
+    ):
         raise ValueError("Invalid registry credential")
     return Credentials(user, token)
 

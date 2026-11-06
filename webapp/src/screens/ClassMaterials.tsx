@@ -1,11 +1,20 @@
-import { Button, Input } from "@maxhub/max-ui";
+import { Input } from "@maxhub/max-ui";
 import { useState, type ReactNode } from "react";
 
 import { api } from "../api";
 import type { Material, MaterialPage } from "../api/types";
 import { relativeDate } from "../format";
 import { useDebounced, useLoader } from "../hooks";
-import { Chip, EmptyState, ErrorState, Screen, ScreenHeader, SkeletonCards } from "../ui/common";
+import {
+  Action,
+  ChatAction,
+  Chip,
+  EmptyState,
+  ErrorState,
+  Screen,
+  ScreenHeader,
+  SkeletonCards,
+} from "../ui/common";
 import { BookIcon, SearchIcon } from "../ui/icons";
 
 function escapeRegExp(value: string): string {
@@ -24,8 +33,12 @@ function highlight(text: string, query: string): ReactNode {
 function MaterialCard({ item, query }: { item: Material; query: string }) {
   return (
     <article className="card material">
-      <h3 className="material-title">{highlight(item.title ?? "Материал класса", query)}</h3>
-      {item.snippet && <p className="material-snippet">{highlight(item.snippet, query)}</p>}
+      <h3 className="material-title">
+        {highlight(item.title ?? "Материал класса", query)}
+      </h3>
+      {item.snippet && (
+        <p className="material-snippet">{highlight(item.snippet, query)}</p>
+      )}
       <div className="material-meta">
         {item.topic_titles.map((title) => (
           <Chip key={title} tone="neutral">
@@ -41,16 +54,20 @@ function MaterialCard({ item, query }: { item: Material; query: string }) {
 function Results({ first, query }: { first: MaterialPage; query: string }) {
   const [pages, setPages] = useState<MaterialPage[]>([first]);
   const [loading, setLoading] = useState(false);
+  const [failure, setFailure] = useState(false);
   const items = pages.flatMap((page) => page.items);
   const cursor = pages.at(-1)?.next_cursor ?? null;
 
   if (items.length === 0) {
     return (
-      <EmptyState icon={<SearchIcon size={32} />} title="Ничего не нашёл">
+      <EmptyState
+        icon={<SearchIcon size={32} />}
+        title={query ? "Совпадений нет" : "Материалов пока нет"}
+      >
         <p>
           {query
             ? `По запросу «${query}» в материалах класса пусто. Попробуй другое слово.`
-            : "Учитель ещё не загрузил материалы. Как только появятся конспекты, они будут здесь."}
+            : "Здесь появятся конспекты из чата класса после обработки ботом."}
         </p>
       </EmptyState>
     );
@@ -60,33 +77,46 @@ function Results({ first, query }: { first: MaterialPage; query: string }) {
       {items.map((item) => (
         <MaterialCard key={item.id} item={item} query={query} />
       ))}
+      {failure && (
+        <p className="pagination-error" role="alert">
+          Не удалось загрузить следующие материалы. Загруженные записи остаются
+          на экране.
+        </p>
+      )}
       {cursor && (
-        <Button
+        <Action
           size="medium"
           variant="secondary"
           stretched
           loading={loading}
           onClick={() => {
+            if (loading) return;
             setLoading(true);
+            setFailure(false);
             api.materials(query, cursor).then(
               (page) => {
                 setPages((current) => [...current, page]);
                 setLoading(false);
               },
               () => {
+                setFailure(true);
                 setLoading(false);
               },
             );
           }}
         >
-          Показать ещё
-        </Button>
+          {failure ? "Повторить загрузку" : "Показать ещё"}
+        </Action>
       )}
     </div>
   );
 }
 
-export function ClassMaterialsScreen({ className }: { className: string | null }) {
+export function ClassMaterialsScreen({
+  className,
+}: {
+  className: string | null;
+}) {
   const [text, setText] = useState("");
   const query = useDebounced(text.trim(), 350);
   const page = useLoader(`materials:${query}`, () => api.materials(query));
@@ -98,11 +128,12 @@ export function ClassMaterialsScreen({ className }: { className: string | null }
     content = <ErrorState error={page.error} onRetry={page.reload} />;
   } else if (!page.data.has_class) {
     content = (
-      <EmptyState icon={<BookIcon size={32} />} title="Ты пока не в классе">
-        <p>
-          Попроси учителя добавить бота «Ясно» в чат класса или прислать приглашение — тогда здесь
-          появятся конспекты и материалы.
-        </p>
+      <EmptyState
+        icon={<BookIcon size={32} />}
+        title="Класс пока не подключён"
+        action={<ChatAction />}
+      >
+        <p>Открой личный чат с ботом и подключись по приглашению класса.</p>
       </EmptyState>
     );
   } else {
@@ -130,6 +161,11 @@ export function ClassMaterialsScreen({ className }: { className: string | null }
           aria-label="Поиск по материалам класса"
           value={text}
           maxLength={200}
+          innerClassNames={{
+            container: "search-field",
+            input: "search-input",
+            clearButton: "search-clear",
+          }}
           withClearButton
           iconBefore={<SearchIcon size={20} />}
           onChange={(event) => {
@@ -137,7 +173,12 @@ export function ClassMaterialsScreen({ className }: { className: string | null }
           }}
         />
       </form>
-      {content}
+      <div
+        className="search-results"
+        aria-busy={page.state === "loading" || text.trim() !== query}
+      >
+        {content}
+      </div>
     </Screen>
   );
 }

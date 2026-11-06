@@ -2,15 +2,22 @@ import { useEffect } from "react";
 
 import { api, ApiError, isMock } from "./api";
 import { useLoader, useOnline } from "./hooks";
-import { ready, showBackButton, startParam } from "./max";
-import { goBack, navigate, parentOf, routeFromStartParam, tabOf, useRoute } from "./router";
+import { observeViewport, ready, showBackButton, startParam } from "./max";
+import {
+  goBack,
+  navigate,
+  parentOf,
+  routeFromStartParam,
+  tabOf,
+  useRoute,
+} from "./router";
 import { ClassMaterialsScreen } from "./screens/ClassMaterials";
 import { GapMapScreen } from "./screens/GapMap";
 import { QuizScreen } from "./screens/Quiz";
 import { SubmissionDetailScreen } from "./screens/SubmissionDetail";
 import { SubmissionsScreen } from "./screens/Submissions";
 import { TeacherScreen } from "./screens/Teacher";
-import { ErrorState, Screen, SkeletonCards } from "./ui/common";
+import { ErrorState, Screen, ScreenHeader, SkeletonCards } from "./ui/common";
 import { TabBar } from "./ui/TabBar";
 
 function openDeepLink(): void {
@@ -31,6 +38,7 @@ export function App() {
 
   useEffect(() => {
     ready();
+    return observeViewport();
   }, []);
 
   useEffect(() => {
@@ -44,11 +52,27 @@ export function App() {
     });
   }, [routeKey, route]);
 
-  if (me.state === "error" && me.error instanceof ApiError && me.error.kind === "auth") {
+  if (me.state === "loading")
     return (
-      <Screen label="Ясно">
-        <ErrorState error={me.error} />
-      </Screen>
+      <div className="shell">
+        <Screen label="Ясно">
+          <SkeletonCards count={3} />
+        </Screen>
+      </div>
+    );
+
+  if (
+    me.state === "error" &&
+    me.error instanceof ApiError &&
+    me.error.kind === "auth"
+  ) {
+    return (
+      <div className="shell shell-focus">
+        <Screen label="Ясно">
+          <ScreenHeader title="Ясно" />
+          <ErrorState error={me.error} />
+        </Screen>
+      </div>
     );
   }
 
@@ -60,6 +84,7 @@ export function App() {
   if (me.state === "error") {
     screen = (
       <Screen label="Ясно">
+        <ScreenHeader title="Ясно" />
         <ErrorState error={me.error} onRetry={me.reload} />
       </Screen>
     );
@@ -78,7 +103,11 @@ export function App() {
         screen = <QuizScreen key={route.id} id={route.id} />;
         break;
       case "class":
-        screen = <ClassMaterialsScreen className={profile?.school_class?.title ?? null} />;
+        screen = (
+          <ClassMaterialsScreen
+            className={profile?.school_class?.title ?? null}
+          />
+        );
         break;
       case "teacher":
         screen =
@@ -90,7 +119,10 @@ export function App() {
             <TeacherScreen />
           ) : (
             <Screen label="Учитель">
-              <ErrorState error={new ApiError("forbidden", 403, "teacher_only")} />
+              <ScreenHeader title="Темы класса" />
+              <ErrorState
+                error={new ApiError("forbidden", 403, "teacher_only")}
+              />
             </Screen>
           );
         break;
@@ -101,10 +133,11 @@ export function App() {
     <div className={route.name === "quiz" ? "shell shell-focus" : "shell"}>
       {!online && (
         <div className="offline" role="status">
-          Нет интернета — покажу, что успело загрузиться
+          Нет интернета. Уже загруженные данные доступны, новые запросы могут не
+          пройти.
         </div>
       )}
-      {isMock && <div className="mock-badge">демо-данные</div>}
+      {isMock && <div className="mock-badge">Ясно · демо-данные</div>}
       {screen}
       {route.name !== "quiz" && <TabBar active={tab} showTeacher={isTeacher} />}
     </div>

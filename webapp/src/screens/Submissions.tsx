@@ -1,4 +1,4 @@
-import { Button, CellList, CellSimple, Spinner } from "@maxhub/max-ui";
+import { CellList, CellSimple, Spinner } from "@maxhub/max-ui";
 import { useState } from "react";
 
 import { api } from "../api";
@@ -7,7 +7,16 @@ import { relativeDate } from "../format";
 import { describeSubmission } from "../status";
 import { useLoader } from "../hooks";
 import { navigate } from "../router";
-import { EmptyState, ErrorState, Screen, ScreenHeader, SkeletonCards } from "../ui/common";
+import {
+  Action,
+  ChatAction,
+  EmptyState,
+  ErrorState,
+  InlineError,
+  Screen,
+  ScreenHeader,
+  SkeletonCards,
+} from "../ui/common";
 import { CameraIcon, CheckIcon, CrossIcon } from "../ui/icons";
 
 function StatusIcon({ item }: { item: Submission }) {
@@ -21,7 +30,13 @@ function StatusIcon({ item }: { item: Submission }) {
   }
   return (
     <span className={`status-icon status-${tone}`} aria-hidden="true">
-      {tone === "solid" ? <CheckIcon size={20} /> : tone === "weak" ? <CrossIcon size={20} /> : "?"}
+      {tone === "solid" ? (
+        <CheckIcon size={20} />
+      ) : tone === "weak" ? (
+        <CrossIcon size={20} />
+      ) : (
+        "?"
+      )}
     </span>
   );
 }
@@ -34,7 +49,7 @@ function History({ first }: { first: Page<Submission> }) {
   const cursor = pages.at(-1)?.next_cursor ?? null;
 
   const loadMore = () => {
-    if (!cursor) return;
+    if (!cursor || loadingMore) return;
     setLoadingMore(true);
     setMoreError(false);
     api.submissions(cursor).then(
@@ -55,6 +70,10 @@ function History({ first }: { first: Page<Submission> }) {
         {items.map((item) => (
           <CellSimple
             key={item.id}
+            innerClassNames={{
+              title: "history-title",
+              subtitle: "history-subtitle",
+            }}
             as="button"
             showChevron
             before={<StatusIcon item={item} />}
@@ -67,9 +86,23 @@ function History({ first }: { first: Page<Submission> }) {
         ))}
       </CellList>
       {cursor && (
-        <Button size="medium" variant="secondary" stretched loading={loadingMore} onClick={loadMore}>
-          {moreError ? "Не загрузилось — ещё раз" : "Показать ещё"}
-        </Button>
+        <>
+          {moreError ? (
+            <InlineError onRetry={loadMore} loading={loadingMore}>
+              Не удалось загрузить следующие разборы.
+            </InlineError>
+          ) : (
+            <Action
+              size="medium"
+              variant="secondary"
+              stretched
+              loading={loadingMore}
+              onClick={loadMore}
+            >
+              Показать ещё
+            </Action>
+          )}
+        </>
       )}
     </div>
   );
@@ -79,15 +112,24 @@ export function SubmissionsScreen() {
   const page = useLoader("submissions", () => api.submissions());
   return (
     <Screen label="Разборы">
-      <ScreenHeader title="Разборы" subtitle="Все решения, которые ты присылал боту" />
+      <ScreenHeader
+        title="Разборы"
+        subtitle="Решения и подсказки из личного чата"
+      />
       {page.state === "loading" && <SkeletonCards count={5} height={64} />}
-      {page.state === "error" && <ErrorState error={page.error} onRetry={page.reload} />}
+      {page.state === "error" && (
+        <ErrorState error={page.error} onRetry={page.reload} />
+      )}
       {page.state === "ready" &&
         (page.data.items.length === 0 ? (
-          <EmptyState icon={<CameraIcon size={32} />} title="Разборов пока нет">
+          <EmptyState
+            icon={<CameraIcon size={28} />}
+            title="Разборов пока нет"
+            action={<ChatAction primary />}
+          >
             <p>
-              Отправь боту «Ясно» фото решения из тетради. Через минуту здесь появится разбор: на
-              каком шаге ошибка и подсказка, как её найти.
+              Отправь фото решения боту в личный чат. Здесь можно будет
+              вернуться к результату проверки и подсказке.
             </p>
           </EmptyState>
         ) : (

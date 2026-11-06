@@ -1,35 +1,66 @@
 import { Spinner } from "@maxhub/max-ui";
 import { useState } from "react";
 
-import { api } from "../api";
+import { api, ApiError } from "../api";
 import type { BBox, SubmissionDetail } from "../api/types";
 import { relativeDate } from "../format";
 import { useLoader } from "../hooks";
 import { goBack } from "../router";
 import { describeSubmission } from "../status";
-import { Chip, ErrorState, Screen, ScreenHeader, Skeleton } from "../ui/common";
+import {
+  Action,
+  ChatAction,
+  ErrorState,
+  InlineError,
+  Screen,
+  ScreenHeader,
+  Skeleton,
+  Chip,
+} from "../ui/common";
 import { SparkIcon } from "../ui/icons";
 
-function percent(value: number): string {
-  return `${Math.min(100, Math.max(0, value * 100)).toFixed(2)}%`;
-}
+const percent = (value: number) =>
+  `${Math.min(100, Math.max(0, value * 100))}%`;
 
-function Photo({ url, bbox }: { url: string; bbox: BBox | null }) {
+export function Photo({
+  url,
+  bbox,
+  step,
+}: {
+  url: string;
+  bbox: BBox | null;
+  step: number | null;
+}) {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
-  if (state === "error") {
-    return <div className="photo photo-missing">Фото сейчас недоступно</div>;
-  }
+  const [attempt, setAttempt] = useState(0);
+  if (state === "error")
+    return (
+      <div className="photo-missing">
+        <p>Фото недоступно. Текст разбора остаётся ниже.</p>
+        <Action
+          variant="secondary"
+          size="medium"
+          onClick={() => {
+            setAttempt((n) => n + 1);
+            setState("loading");
+          }}
+        >
+          Загрузить фото
+        </Action>
+      </div>
+    );
   return (
-    <figure className="photo">
+    <figure className="photo" aria-label="Фото решения">
       {state === "loading" && (
-        <div className="photo-placeholder">
+        <div aria-busy="true" aria-label="Загрузка фото">
           <Skeleton height={200} radius={16} />
         </div>
       )}
       <div className="photo-frame" hidden={state !== "ready"}>
         <img
+          key={attempt}
           src={url}
-          alt="Фото решения"
+          alt="Фото твоего решения из тетради"
           onLoad={() => {
             setState("ready");
           }}
@@ -41,143 +72,202 @@ function Photo({ url, bbox }: { url: string; bbox: BBox | null }) {
           <span
             className="photo-mark"
             role="img"
-            aria-label="Строка с ошибкой"
+            aria-label={step ? `Проверь шаг ${step}` : "Строка с ошибкой"}
             style={{
               left: percent(bbox.x),
               top: percent(bbox.y),
-              width: percent(bbox.width),
-              height: percent(bbox.height),
+              width: percent(Math.min(bbox.width, 1 - bbox.x)),
+              height: percent(Math.min(bbox.height, 1 - bbox.y)),
             }}
-          />
+          >
+            {step && <span className="photo-label">Шаг {step}</span>}
+          </span>
         )}
       </div>
+      {bbox && step && (
+        <figcaption>
+          Рамкой выделен шаг {step}. Он отмечен и в списке ниже.
+        </figcaption>
+      )}
     </figure>
   );
 }
 
-function StatusBanner({ item }: { item: SubmissionDetail }) {
-  switch (item.status) {
-    case "queued":
-    case "processing":
-      return (
-        <div className="banner banner-accent" role="status">
-          <Spinner size={20} appearance="themed" />
-          <span>Проверяю решение. Обычно это занимает меньше минуты — я пришлю ответ в чат.</span>
-        </div>
-      );
-    case "needs_confirmation":
-      return (
-        <div className="banner banner-improving" role="status">
-          Я не уверен, что правильно прочитал почерк. Открой чат с ботом и подтверди, что
-          распознал верно.
-        </div>
-      );
-    case "failed":
-      return (
-        <div className="banner banner-neutral" role="status">
-          Не получилось разобрать это фото. Попробуй переснять при хорошем свете, чтобы решение
-          было целиком в кадре, и отправь боту ещё раз.
-        </div>
-      );
-    case "done":
-      return null;
-  }
-}
-
-function Result({ item }: { item: SubmissionDetail }) {
-  const errorPosition = item.lines.findIndex((line) => line.is_error);
-  const hasError = item.first_error_step !== null || item.error_type !== null;
+function ResultBanner({ item }: { item: SubmissionDetail }) {
+  const status = describeSubmission(item);
+  const text =
+    item.status === "queued"
+      ? "Фото ожидает обработки. Обнови состояние, чтобы проверить результат."
+      : item.status === "processing"
+        ? "Результат появится после обработки. Его также можно посмотреть в чате."
+        : item.status === "needs_confirmation"
+          ? "В чате можно проверить распознанные строки и уточнить запись."
+          : item.status === "failed"
+            ? "Причину не удалось определить. Вернись в чат и попробуй отправить фото ещё раз."
+            : item.verdict === "correct"
+              ? "В проверенных шагах ошибок не найдено."
+              : item.verdict === "error"
+                ? "Начни с отмеченного шага. Подсказка поможет проверить преобразование."
+                : item.verdict === "incomplete"
+                  ? "Продолжи решение в тетради. Вопрос по следующему шагу можно задать в чате."
+                  : item.verdict === "review"
+                    ? "Этот переход не удалось проверить однозначно. Поясни его в чате."
+                    : "Обнови разбор или вернись в чат, чтобы уточнить результат.";
   return (
-    <>
-      {item.status === "done" && !hasError && (
-        <div className="banner banner-solid" role="status">
-          Ошибок не нашёл — всё решено верно. Так держать!
-        </div>
-      )}
-      {item.lines.length > 0 && (
-        <section className="card" aria-label="Распознанное решение">
-          <h2 className="card-title">Твоё решение</h2>
-          {item.task && <p className="task">{item.task}</p>}
-          <ol className="lines">
-            {item.lines.map((line, position) => (
-              <li
-                key={`${line.index}-${position}`}
-                className={line.is_error ? "line line-error" : "line"}
-                aria-current={line.is_error ? "step" : undefined}
-              >
-                <span className="line-number">{position + 1}</span>
-                <span className="line-math">{line.display || line.latex}</span>
-                {line.is_error && <span className="line-flag">ошибка здесь</span>}
-                {!line.is_error && line.confidence < 0.6 && (
-                  <span className="line-unsure" title="Плохо читается">
-                    ?
-                  </span>
-                )}
-              </li>
-            ))}
-          </ol>
-        </section>
-      )}
-      {item.analysis && hasError && (
-        <section className="card hint-card" aria-label="Подсказка">
-          <div className="hint-head">
-            <SparkIcon size={18} />
-            <h2 className="card-title">
-              {errorPosition >= 0 ? `Ошибка в шаге ${errorPosition + 1}` : "Где ошибка"}
-            </h2>
-            {item.error_title && <Chip tone="weak">{item.error_title}</Chip>}
-          </div>
-          {item.analysis.hint && <p className="hint-text">{item.analysis.hint}</p>}
-          <p className="hint-note">Ответ не подсказываю — попробуй исправить сам, у тебя получится.</p>
-        </section>
-      )}
-    </>
+    <section
+      className={`result-banner banner-${status.tone}`}
+      aria-label="Результат разбора"
+      role="status"
+    >
+      <div className="result-banner-head">
+        {["queued", "processing"].includes(item.status) && (
+          <Spinner size={20} appearance="themed" />
+        )}
+        <h2>{status.label}</h2>
+      </div>
+      <p>{text}</p>
+    </section>
   );
 }
 
 export function SubmissionDetailScreen({ id }: { id: number }) {
   const detail = useLoader(`submission-${id}`, () => api.submission(id));
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<unknown>(null);
   const back = () => {
     goBack({ name: "submission", id });
   };
-
-  if (detail.state === "loading") {
+  const refresh = () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setRefreshError(null);
+    api
+      .submission(id)
+      .then(detail.setData, setRefreshError)
+      .finally(() => {
+        setRefreshing(false);
+      });
+  };
+  if (!detail.data)
     return (
       <Screen label="Разбор">
         <ScreenHeader title="Разбор" onBack={back} />
-        <div className="stack" aria-busy="true">
-          <Skeleton height={220} radius={20} />
-          <Skeleton height={120} radius={20} />
-        </div>
+        {detail.state === "error" ? (
+          <ErrorState
+            error={detail.error}
+            onRetry={detail.reload}
+            title={
+              detail.error instanceof ApiError &&
+              detail.error.kind === "not_found"
+                ? "Разбор недоступен"
+                : undefined
+            }
+          />
+        ) : (
+          <div className="stack" aria-busy="true" aria-label="Загрузка разбора">
+            <Skeleton height={100} />
+            <Skeleton height={220} />
+          </div>
+        )}
       </Screen>
     );
-  }
-  if (detail.state === "error") {
-    return (
-      <Screen label="Разбор">
-        <ScreenHeader title="Разбор" onBack={back} />
-        <ErrorState error={detail.error} onRetry={detail.reload} />
-      </Screen>
-    );
-  }
   const item = detail.data;
-  const status = describeSubmission(item);
+  // API line.index is zero based; never substitute the array position for this index.
+  const errorLine = item.lines.find(
+    (line) => line.index === item.first_error_step,
+  );
+  const step =
+    item.first_error_step === null ? null : item.first_error_step + 1;
+  const isError = item.status === "done" && item.verdict === "error";
   return (
     <Screen label="Разбор">
       <ScreenHeader
-        title={item.topic_title ?? "Разбор"}
-        subtitle={
-          <>
-            {relativeDate(item.created_at)} · <Chip tone={status.tone}>{status.label}</Chip>
-          </>
-        }
+        title={item.topic_title ?? "Разбор решения"}
+        subtitle={relativeDate(item.created_at)}
         onBack={back}
       />
-      <div className="stack">
-        <StatusBanner item={item} />
-        {item.image_url && <Photo url={item.image_url} bbox={item.error_bbox} />}
-        <Result item={item} />
-      </div>
+      <ResultBanner item={item} />
+      {refreshError !== null && (
+        <InlineError onRetry={refresh} loading={refreshing}>
+          Не удалось обновить разбор. Предыдущий результат остаётся на экране.
+        </InlineError>
+      )}
+      {(["queued", "processing"].includes(item.status) ||
+        (item.status === "done" &&
+          !["correct", "error", "incomplete", "review"].includes(
+            item.verdict ?? "",
+          ))) &&
+        refreshError === null && (
+          <Action
+            variant="secondary"
+            size="medium"
+            loading={refreshing}
+            onClick={refresh}
+          >
+            Обновить состояние
+          </Action>
+        )}
+      {item.image_url ? (
+        <Photo
+          key={item.image_url}
+          url={item.image_url}
+          bbox={isError ? (errorLine?.bbox ?? item.error_bbox) : null}
+          step={step}
+        />
+      ) : (
+        <p className="photo-missing">Фото недоступно</p>
+      )}
+      {item.lines.length > 0 && (
+        <section className="card" aria-labelledby="solution-title">
+          <h2 className="card-title" id="solution-title">
+            Твоё решение
+          </h2>
+          {item.task && <p className="task math-text">{item.task}</p>}
+          <ol className="lines">
+            {item.lines.map((line) => {
+              const marked = isError && line.index === item.first_error_step;
+              return (
+                <li
+                  key={line.index}
+                  className={marked ? "line line-error" : "line"}
+                >
+                  <span className="line-number">{line.index + 1}</span>
+                  <span
+                    className="line-math"
+                    tabIndex={0}
+                    aria-label={`Шаг ${line.index + 1}: ${line.display || line.latex}`}
+                  >
+                    {line.display || line.latex}
+                  </span>
+                  {marked && <span className="line-flag">Проверь шаг</span>}
+                  {line.confidence < 0.6 && (
+                    <span className="line-uncertain">
+                      Запись нужно уточнить
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
+      {item.analysis?.hint &&
+        item.status === "done" &&
+        item.verdict !== "correct" && (
+          <section className="card hint-card" aria-label="Подсказка">
+            <div className="hint-head">
+              <SparkIcon size={20} />
+              <h2 className="card-title">
+                {isError && step ? `Подсказка к шагу ${step}` : "Подсказка"}
+              </h2>
+            </div>
+            {isError && item.error_title && (
+              <Chip tone="weak">{item.error_title}</Chip>
+            )}
+            <p className="hint-text">{item.analysis.hint}</p>
+          </section>
+        )}
+      {item.verdict !== "correct" && <ChatAction />}
     </Screen>
   );
 }

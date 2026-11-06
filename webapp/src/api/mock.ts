@@ -10,7 +10,12 @@ import type {
   TeacherSummary,
 } from "./types";
 
-const notebookLines = ["x² − 5x + 6 = 0", "D = 25 + 24 = 49", "x = (5 ± 7) / 2", "x₁ = 6, x₂ = −1"];
+const notebookLines = [
+  "x² − 5x + 6 = 0",
+  "D = 25 + 24 = 49",
+  "x = (5 ± 7) / 2",
+  "x₁ = 6, x₂ = −1",
+];
 
 function notebookImage(lines: string[], errorIndex: number | null): string {
   const rows = lines
@@ -33,13 +38,14 @@ function bboxFor(index: number) {
 }
 
 const now = Date.now();
-const hoursAgo = (hours: number) => new Date(now - hours * 3_600_000).toISOString();
+const hoursAgo = (hours: number) =>
+  new Date(now - hours * 3_600_000).toISOString();
 
 const me: Me = {
   id: 1,
   first_name: "Аня",
   last_name: null,
-  role: "teacher",
+  role: "student",
   grade: 9,
   consent_status: "granted",
   school_class: { id: 1, title: "9Б", grade: 9 },
@@ -69,7 +75,9 @@ const gaps: GapMap = {
       correct_total: 0,
       last_mistake_at: hoursAgo(30),
       next_review_at: hoursAgo(-20),
-      error_types: [{ code: "fractions", title: "Действия с дробями", count: 2 }],
+      error_types: [
+        { code: "fractions", title: "Действия с дробями", count: 2 },
+      ],
     },
     {
       code: "alg.roots",
@@ -90,7 +98,11 @@ const gaps: GapMap = {
       last_mistake_at: hoursAgo(300),
       next_review_at: null,
       error_types: [
-        { code: "inequality_flip", title: "Знак неравенства при умножении на отрицательное", count: 1 },
+        {
+          code: "inequality_flip",
+          title: "Знак неравенства при умножении на отрицательное",
+          count: 1,
+        },
       ],
     },
   ],
@@ -248,8 +260,12 @@ const quiz: Quiz = {
   ].map((item, position) => ({
     id: 100 + position,
     position,
-    topic_code: position === 2 || position === 4 ? "arith.fractions" : "alg.quadratic_eq",
-    topic_title: position === 2 || position === 4 ? "Действия с дробями" : "Квадратные уравнения",
+    topic_code:
+      position === 2 || position === 4 ? "arith.fractions" : "alg.quadratic_eq",
+    topic_title:
+      position === 2 || position === 4
+        ? "Действия с дробями"
+        : "Квадратные уравнения",
     prompt: item.prompt,
     choices: item.choices.map((text, index) => ({ index, text })),
     from_gap_map: position !== 3,
@@ -295,7 +311,8 @@ const materials: Material[] = [
   {
     id: 1,
     title: "Дискриминант",
-    snippet: "D = b² − 4ac. Если D > 0 — два корня, D = 0 — один, D < 0 — корней нет.",
+    snippet:
+      "D = b² − 4ac. Если D > 0 — два корня, D = 0 — один, D < 0 — корней нет.",
     topic_titles: ["Квадратные уравнения"],
     created_at: hoursAgo(120),
   },
@@ -320,7 +337,11 @@ const teacher: TeacherSummary = {
       weak: 5,
       improving: 3,
       solid: 6,
-      top_error_type: { code: "fractions", title: "Действия с дробями", count: 7 },
+      top_error_type: {
+        code: "fractions",
+        title: "Действия с дробями",
+        count: 7,
+      },
     },
     {
       code: "alg.roots",
@@ -334,6 +355,8 @@ const teacher: TeacherSummary = {
 };
 
 function delay<T>(value: T, ms = 450): Promise<T> {
+  if (!navigator.onLine)
+    return Promise.reject(new ApiError("network", 0, "offline"));
   return new Promise((resolve) =>
     setTimeout(() => {
       resolve(structuredClone(value));
@@ -363,13 +386,16 @@ function quizCounts(): void {
   quiz.status = quiz.answered === quiz.total ? "completed" : "active";
 }
 
-export const mockApi: Api = {
+const baseMockApi: Api = {
   me: () => delay(me),
   gaps: () => delay(gaps),
-  submissions: () => delay({ items: submissionDetails.map(toSummary), next_cursor: null }),
+  submissions: () =>
+    delay({ items: submissionDetails.map(toSummary), next_cursor: null }),
   submission: (id) => {
     const found = submissionDetails.find((item) => item.id === id);
-    return found ? delay(found) : Promise.reject(new ApiError("not_found", 404, "not found"));
+    return found
+      ? delay(found)
+      : Promise.reject(new ApiError("not_found", 404, "not found"));
   },
   activeQuiz: () => {
     const summary = {
@@ -385,7 +411,9 @@ export const mockApi: Api = {
     return delay({ quiz: quiz.status === "active" ? summary : null });
   },
   quiz: (id) =>
-    id === quiz.id ? delay(quiz) : Promise.reject(new ApiError("not_found", 404, "not found")),
+    id === quiz.id
+      ? delay(quiz)
+      : Promise.reject(new ApiError("not_found", 404, "not found")),
   answer: (_quizId, itemId, choiceIndex) => {
     const item = quiz.items.find((candidate) => candidate.id === itemId);
     const correctIndex = correctAnswers.get(itemId);
@@ -405,14 +433,28 @@ export const mockApi: Api = {
       chosen_index: chosen,
       correct_index: correctIndex,
       is_correct: chosen === correctIndex,
-      explanation: chosen === correctIndex ? null : (explanations.get(itemId) ?? null),
+      explanation:
+        chosen === correctIndex ? null : (explanations.get(itemId) ?? null),
       already_answered: alreadyAnswered,
       quiz_status: quiz.status,
       answered: quiz.answered,
       total: quiz.total,
       correct: quiz.correct,
     };
-    return delay(result, 250);
+    try {
+      sessionStorage.setItem(
+        storageKey,
+        JSON.stringify(
+          quiz.items.map((entry) => ({
+            id: entry.id,
+            chosen: entry.answered_index,
+          })),
+        ),
+      );
+    } catch {
+      /* Memory-only demo remains usable. */
+    }
+    return delay(result, 650);
   },
   materials: (q) => {
     const needle = q.trim().toLowerCase();
@@ -424,4 +466,213 @@ export const mockApi: Api = {
     return delay({ has_class: true, items, next_cursor: null }, 300);
   },
   teacherSummary: () => delay(teacher),
+};
+
+// Development fixtures never enter the production API path. All names/data are synthetic.
+const options = new URLSearchParams(location.search);
+const scenario = options.get("scenario") ?? "default";
+const storageKey = `yasno-demo-quiz:${scenario}`;
+try {
+  const stored: unknown = JSON.parse(
+    sessionStorage.getItem(storageKey) ?? "null",
+  );
+  if (Array.isArray(stored))
+    for (const value of stored) {
+      const row: unknown = value;
+      if (
+        !row ||
+        typeof row !== "object" ||
+        !("id" in row) ||
+        !("chosen" in row)
+      )
+        continue;
+      const item = quiz.items.find((entry) => entry.id === row.id);
+      const chosen: unknown = row.chosen;
+      if (
+        item &&
+        typeof chosen === "number" &&
+        item.choices.some((choice) => choice.index === chosen)
+      ) {
+        item.answered_index = chosen;
+        item.correct_index = correctAnswers.get(item.id) ?? null;
+        item.is_correct = chosen === item.correct_index;
+      }
+    }
+} catch {
+  /* A fresh demo works without readable storage. */
+}
+quizCounts();
+if (scenario === "completed") {
+  for (const item of quiz.items) {
+    item.answered_index = correctAnswers.get(item.id) ?? 0;
+    item.correct_index = item.answered_index;
+    item.is_correct = true;
+  }
+  quizCounts();
+}
+if (scenario === "expired") quiz.status = "expired";
+const failed = new Set<string>();
+async function before(operation: string) {
+  if (scenario === "loading" && operation !== "me")
+    await new Promise((resolve) => setTimeout(resolve, 15000));
+  if (
+    scenario === "auth" ||
+    (scenario === "forbidden" && operation !== "me") ||
+    (scenario === "not-found" && ["submission", "quiz"].includes(operation))
+  ) {
+    const status =
+      scenario === "auth" ? 401 : scenario === "forbidden" ? 403 : 404;
+    throw new ApiError(
+      status === 401 ? "auth" : status === 403 ? "forbidden" : "not_found",
+      status,
+      "demo",
+    );
+  }
+  if (
+    ((scenario === "error" && operation !== "me") ||
+      (scenario === "quiz-error" && operation === "active")) &&
+    !failed.has(operation)
+  ) {
+    failed.add(operation);
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    throw new ApiError("network", 0, "demo");
+  }
+}
+export const mockApi: Api = {
+  me: async () => {
+    await before("me");
+    return delay({
+      ...me,
+      role: options.get("role") === "teacher" ? "teacher" : "student",
+      school_class: scenario === "no-class" ? null : me.school_class,
+    });
+  },
+  gaps: async () => {
+    await before("gaps");
+    if (scenario === "empty")
+      return delay({
+        topics: [],
+        summary: { weak: 0, improving: 0, solid: 0 },
+      });
+    const data = structuredClone(gaps);
+    if (scenario === "long" && data.topics[0])
+      data.topics[0].title =
+        "Рациональные уравнения с параметрами и преобразование алгебраических выражений";
+    return delay(data);
+  },
+  activeQuiz: async () => {
+    await before("active");
+    return scenario === "no-test" || scenario === "empty"
+      ? delay({ quiz: null })
+      : baseMockApi.activeQuiz();
+  },
+  submissions: async (cursor) => {
+    await before("submissions");
+    if (scenario === "empty") return delay({ items: [], next_cursor: null });
+    if (scenario === "pagination-error") {
+      if (cursor && !failed.has("history-more")) {
+        failed.add("history-more");
+        throw new ApiError("network", 0, "demo");
+      }
+      return delay({
+        items: submissionDetails
+          .slice(cursor ? 2 : 0, cursor ? undefined : 2)
+          .map(toSummary),
+        next_cursor: cursor ? null : "2",
+      });
+    }
+    return baseMockApi.submissions(cursor);
+  },
+  submission: async (id) => {
+    await before("submission");
+    const item = await baseMockApi.submission(id);
+    const status = (
+      {
+        queued: "queued",
+        processing: "processing",
+        confirmation: "needs_confirmation",
+        failed: "failed",
+      } as Record<string, SubmissionDetail["status"] | undefined>
+    )[scenario];
+    if (status) {
+      item.status = status;
+      item.verdict = null;
+      item.analysis = null;
+      item.first_error_step = null;
+    }
+    if (["correct", "review", "incomplete", "unknown"].includes(scenario)) {
+      item.status = "done";
+      item.verdict = scenario === "unknown" ? null : scenario;
+      item.first_error_step = null;
+      item.error_type = null;
+      item.error_title = null;
+      item.error_bbox = null;
+      item.lines = item.lines.map((line) => ({ ...line, is_error: false }));
+      item.analysis = null;
+    }
+    if (scenario === "photo-error") item.image_url = "/__unavailable-photo.png";
+    if (scenario === "long" && item.lines[0]) {
+      item.topic_title =
+        "Рациональные уравнения с параметрами и преобразование алгебраических выражений";
+      item.lines[0].display =
+        "(x² − 5x + 6) / (x² − 9) + √(x² + 2x + 1) = (x − 2)(x − 3) / ((x − 3)(x + 3))";
+    }
+    return item;
+  },
+  quiz: async (id) => {
+    await before("quiz");
+    if (scenario === "empty") {
+      const data = await baseMockApi.quiz(id);
+      return { ...data, items: [], total: 0 };
+    }
+    return baseMockApi.quiz(id);
+  },
+  answer: async (quizId, itemId, index) => {
+    if (
+      ["answer-error", "answer-saved"].includes(scenario) &&
+      !failed.has("answer")
+    ) {
+      failed.add("answer");
+      if (scenario === "answer-saved")
+        await baseMockApi.answer(quizId, itemId, index);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      throw new ApiError("network", 0, "demo");
+    }
+    return baseMockApi.answer(quizId, itemId, index);
+  },
+  materials: async (q, cursor) => {
+    await before("materials");
+    if (scenario === "no-class")
+      return delay({ has_class: false, items: [], next_cursor: null });
+    if (scenario === "empty")
+      return delay({ has_class: true, items: [], next_cursor: null });
+    const data = await baseMockApi.materials(q);
+    if (scenario === "pagination-error" && !q) {
+      if (cursor && !failed.has("materials-more")) {
+        failed.add("materials-more");
+        throw new ApiError("network", 0, "demo");
+      }
+      return {
+        ...data,
+        items: data.items.slice(cursor ? 2 : 0, cursor ? undefined : 2),
+        next_cursor: cursor ? null : "2",
+      };
+    }
+    return data;
+  },
+  teacherSummary: async () => {
+    await before("teacher");
+    const data = await baseMockApi.teacherSummary();
+    if (scenario === "no-class")
+      return {
+        ...data,
+        school_class: null,
+        topics: [],
+        students_total: 0,
+        students_with_gaps: 0,
+      };
+    if (scenario === "empty")
+      return { ...data, topics: [], students_with_gaps: 0 };
+    return data;
+  },
 };

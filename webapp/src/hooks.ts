@@ -19,8 +19,14 @@ export function useLoader<T>(
   loader: () => Promise<T>,
 ): Loadable<T> & { reload: () => void; setData: (data: T) => void } {
   const loaderRef = useRef(loader);
+  const pendingRef = useRef<{ token: string; promise: Promise<T> } | null>(
+    null,
+  );
   const [attempt, setAttempt] = useState(0);
-  const [result, setResult] = useState<{ token: string; value: Loadable<T> } | null>(null);
+  const [result, setResult] = useState<{
+    token: string;
+    value: Loadable<T>;
+  } | null>(null);
   const token = `${key}#${attempt}`;
 
   useLayoutEffect(() => {
@@ -29,12 +35,21 @@ export function useLoader<T>(
 
   useEffect(() => {
     let cancelled = false;
-    loaderRef.current().then(
+    // Reuse the in-flight request when StrictMode replays this effect.
+    if (pendingRef.current?.token !== token) {
+      pendingRef.current = {
+        token,
+        promise: Promise.resolve().then(() => loaderRef.current()),
+      };
+    }
+    pendingRef.current.promise.then(
       (data) => {
-        if (!cancelled) setResult({ token, value: { state: "ready", data, error: null } });
+        if (!cancelled)
+          setResult({ token, value: { state: "ready", data, error: null } });
       },
       (error: unknown) => {
-        if (!cancelled) setResult({ token, value: { state: "error", data: null, error } });
+        if (!cancelled)
+          setResult({ token, value: { state: "error", data: null, error } });
       },
     );
     return () => {
@@ -74,15 +89,26 @@ const darkQuery = "(prefers-color-scheme: dark)";
 function subscribeScheme(callback: () => void): () => void {
   const media = window.matchMedia(darkQuery);
   media.addEventListener("change", callback);
+  window.addEventListener("yasno-theme", callback);
   return () => {
     media.removeEventListener("change", callback);
+    window.removeEventListener("yasno-theme", callback);
   };
 }
 
 export function useColorScheme(): "light" | "dark" {
   return useSyncExternalStore(
     subscribeScheme,
-    () => (window.matchMedia(darkQuery).matches ? "dark" : "light"),
+    () => {
+      const demo = import.meta.env.DEV
+        ? new URLSearchParams(location.search).get("theme")
+        : null;
+      return demo === "dark" || demo === "light"
+        ? demo
+        : window.matchMedia(darkQuery).matches
+          ? "dark"
+          : "light";
+    },
     () => "light",
   );
 }

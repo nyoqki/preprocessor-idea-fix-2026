@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import (
 
 
 def create_engine(
-    url: str, *, echo: bool = False, pool_size: int = 5, max_overflow: int = 0
+    url: str, *, echo: bool = False, pool_size: int = 10, max_overflow: int = 10
 ) -> AsyncEngine:
     return create_async_engine(
         url,

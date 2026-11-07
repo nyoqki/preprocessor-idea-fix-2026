@@ -29,10 +29,10 @@ class Settings(BaseSettings):
 
     database_url: PostgresDsn = PostgresDsn("postgresql+asyncpg://yasno:yasno@localhost:5432/yasno")
     redis_url: RedisDsn = RedisDsn("redis://localhost:6379/0")
-    database_pool_size: int = Field(default=5, ge=1)
-    database_max_overflow: int = Field(default=0, ge=0)
-    worker_max_jobs: int = Field(default=4, ge=1)
-    math_workers: int = Field(default=1, ge=1)
+    database_pool_size: int = Field(default=10, ge=1)
+    database_max_overflow: int = Field(default=10, ge=0)
+    worker_max_jobs: int = Field(default=20, ge=1)
+    math_workers: int = Field(default=2, ge=1)
 
     storage_dir: Path = Path("data/storage")
 

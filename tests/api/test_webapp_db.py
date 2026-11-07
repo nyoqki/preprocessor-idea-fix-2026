@@ -1,12 +1,12 @@
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.api.test_webapp_auth import build_init_data
@@ -16,6 +16,7 @@ from yasno.api.deps import get_max_client, get_session
 from yasno.api.webapp.auth import current_user
 from yasno.config import Settings
 from yasno.db.models import (
+    ConsentStatus,
     Material,
     Mistake,
     Quiz,
@@ -98,6 +99,82 @@ async def test_init_data_upserts_user(db_sessions: Sessions, storage: LocalStora
         user = await session.scalar(select(User).where(User.max_user_id == 4242))
     assert user is not None
     assert user.last_name == "Петрова"
+
+
+async def test_repeated_webapp_reads_leave_user_row_unchanged(
+    db_sessions: Sessions, storage: LocalStorage
+) -> None:
+    raw = build_init_data(auth_date=datetime.now(UTC))
+    headers = {"Authorization": f"tma {raw}"}
+    async with make_client(db_sessions, None, storage) as client:
+        assert (await client.get("/api/v1/me", headers=headers)).status_code == 200
+        async with db_sessions() as session:
+            before = await session.scalar(text("SELECT xmin::text FROM users"))
+        for path in ("/api/v1/me", "/api/v1/gaps", "/api/v1/quizzes/active") * 6:
+            assert (await client.get(path, headers=headers)).status_code == 200
+        async with db_sessions() as session:
+            after = await session.scalar(text("SELECT xmin::text FROM users"))
+    assert before == after
+
+
+async def test_webapp_reads_current_role_and_consent_without_rewriting_profile(
+    db_sessions: Sessions, storage: LocalStorage
+) -> None:
+    raw = build_init_data(auth_date=datetime.now(UTC))
+    headers = {"Authorization": f"tma {raw}"}
+    async with make_client(db_sessions, None, storage) as client:
+        assert (await client.get("/api/v1/me", headers=headers)).status_code == 200
+        async with db_sessions.begin() as session:
+            user = await session.scalar(select(User))
+            assert user is not None
+            user.role = Role.TEACHER
+            user.consent_status = ConsentStatus.REVOKED
+        async with db_sessions() as session:
+            before = await session.scalar(text("SELECT xmin::text FROM users"))
+        response = await client.get("/api/v1/me", headers=headers)
+        assert response.status_code == 200
+        assert response.json()["role"] == "teacher"
+        assert response.json()["consent_status"] == "revoked"
+        async with db_sessions() as session:
+            assert await session.scalar(text("SELECT xmin::text FROM users")) == before
+
+
+@pytest.mark.parametrize("change", ["stale", "profile", "dialog", "missing_timestamp"])
+async def test_webapp_refreshes_profile_when_needed(
+    db_sessions: Sessions, storage: LocalStorage, change: str
+) -> None:
+    raw = build_init_data(auth_date=datetime.now(UTC))
+    headers = {"Authorization": f"tma {raw}"}
+    async with make_client(db_sessions, None, storage) as client:
+        assert (await client.get("/api/v1/me", headers=headers)).status_code == 200
+        async with db_sessions.begin() as session:
+            user = await session.scalar(select(User))
+            assert user is not None
+            if change == "stale":
+                user.last_seen_at = datetime.now(UTC) - timedelta(minutes=6)
+            elif change == "dialog":
+                user.dialog_available = False
+            elif change == "missing_timestamp":
+                user.last_seen_at = None
+        if change == "profile":
+            raw = build_init_data(
+                auth_date=datetime.now(UTC),
+                user={"id": 4242, "first_name": "Оля", "last_name": "Сидорова", "username": "olya"},
+            )
+            headers = {"Authorization": f"tma {raw}"}
+        before = datetime.now(UTC)
+        response = await client.get("/api/v1/me", headers=headers)
+        assert response.status_code == 200
+        async with db_sessions() as session:
+            refreshed = await session.scalar(select(User))
+    assert refreshed is not None
+    assert refreshed.last_seen_at is not None
+    assert refreshed.last_seen_at >= before
+    assert refreshed.dialog_available
+    if change == "profile":
+        assert refreshed.first_name == "Оля"
+        assert refreshed.last_name == "Сидорова"
+        assert refreshed.username == "olya"
 
 
 async def test_gap_map_with_error_types(db_sessions: Sessions, storage: LocalStorage) -> None:

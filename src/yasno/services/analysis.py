@@ -64,7 +64,7 @@ class Analysis:
 
 
 class Verifier:
-    def __init__(self, workers: int = 2) -> None:
+    def __init__(self, workers: int = 1) -> None:
         self._pool = ProcessPoolExecutor(
             max_workers=workers, mp_context=multiprocessing.get_context("forkserver")
         )

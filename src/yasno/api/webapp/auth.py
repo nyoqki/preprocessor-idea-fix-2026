@@ -14,7 +14,7 @@ from yasno.api.deps import get_session, get_settings_dep
 from yasno.config import Settings
 from yasno.db.models import Role, User
 from yasno.max import types as max_types
-from yasno.users import upsert_user
+from yasno.users import get_by_max_id, upsert_user
 
 log = structlog.get_logger(__name__)
 
@@ -22,6 +22,7 @@ AUTH_SCHEME = "tma"
 CLOCK_SKEW = timedelta(minutes=5)
 MEDIA_TOKEN_BUCKET_SECONDS = 3600
 MEDIA_TOKEN_BUCKETS = 3
+PROFILE_REFRESH_INTERVAL = timedelta(minutes=5)
 
 
 class InitDataError(Exception):
@@ -184,7 +185,17 @@ async def current_user(
         last_name=init_data.user.last_name,
         username=init_data.user.username,
     )
-    user = await upsert_user(session, actor)
+    user = await get_by_max_id(session, actor.user_id)
+    if (
+        user is None
+        or user.first_name != actor.first_name
+        or user.last_name != actor.last_name
+        or user.username != actor.username
+        or not user.dialog_available
+        or user.last_seen_at is None
+        or user.last_seen_at < datetime.now(UTC) - PROFILE_REFRESH_INTERVAL
+    ):
+        user = await upsert_user(session, actor)
     await session.commit()
     request.state.init_data = init_data
     return user

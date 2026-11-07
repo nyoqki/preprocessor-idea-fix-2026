@@ -44,7 +44,11 @@ async def startup(job_ctx: JobContext) -> None:
         base_url=str(settings.max_api_url).rstrip("/"),
         verify=build_ssl_context(settings.max_extra_ca_file),
     )
-    engine = create_engine(str(settings.database_url))
+    engine = create_engine(
+        str(settings.database_url),
+        pool_size=settings.database_pool_size,
+        max_overflow=settings.database_max_overflow,
+    )
     redis = Redis.from_url(str(settings.redis_url))
     ai = build_ai(settings)
     me = await max_client.get_me()
@@ -62,7 +66,7 @@ async def startup(job_ctx: JobContext) -> None:
         redis=redis,
         tutor=Tutor.from_services(ai),
         storage=LocalStorage(settings.storage_dir),
-        verifier=Verifier(),
+        verifier=Verifier(workers=settings.math_workers),
         bot_username=me.username or "",
     )
     log.info("worker_started", bot=me.username)
@@ -157,7 +161,7 @@ class WorkerSettings:
     on_shutdown = shutdown
     queue_name = QUEUE_NAME
     keep_result = JOB_RESULT_TTL_SECONDS
-    max_jobs = 20
+    max_jobs = get_settings().worker_max_jobs
     job_timeout = 300
     redis_settings = redis_settings(str(get_settings().redis_url))
 

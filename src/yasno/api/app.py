@@ -18,7 +18,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-        engine = create_engine(str(settings.database_url))
+        engine = create_engine(
+            str(settings.database_url),
+            pool_size=settings.database_pool_size,
+            max_overflow=settings.database_max_overflow,
+        )
         queue = await create_queue(str(settings.redis_url))
         app.state.settings = settings
         app.state.engine = engine

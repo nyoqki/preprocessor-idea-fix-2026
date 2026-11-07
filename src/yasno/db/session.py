@@ -6,13 +6,15 @@ from sqlalchemy.ext.asyncio import (
 )
 
 
-def create_engine(url: str, *, echo: bool = False) -> AsyncEngine:
+def create_engine(
+    url: str, *, echo: bool = False, pool_size: int = 5, max_overflow: int = 0
+) -> AsyncEngine:
     return create_async_engine(
         url,
         echo=echo,
         pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=10,
+        pool_size=pool_size,
+        max_overflow=max_overflow,
         pool_recycle=1800,
     )
 

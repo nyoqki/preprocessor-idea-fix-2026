@@ -1,11 +1,6 @@
 import { ApiError } from "./api";
 
-export function plural(
-  count: number,
-  one: string,
-  few: string,
-  many: string,
-): string {
+export function plural(count: number, one: string, few: string, many: string): string {
   const mod10 = count % 10;
   const mod100 = count % 100;
   if (mod10 === 1 && mod100 !== 11) return one;
@@ -13,12 +8,7 @@ export function plural(
   return many;
 }
 
-export function countLabel(
-  count: number,
-  one: string,
-  few: string,
-  many: string,
-): string {
+export function countLabel(count: number, one: string, few: string, many: string): string {
   return `${count} ${plural(count, one, few, many)}`;
 }
 
@@ -32,11 +22,7 @@ const dayFormat = new Intl.DateTimeFormat("ru-RU", {
 });
 
 function startOfDay(date: Date): number {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-  ).getTime();
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
 export function relativeDate(iso: string, now = new Date()): string {

@@ -25,20 +25,14 @@ function highlight(text: string, query: string): ReactNode {
   const needle = query.trim();
   if (!needle) return text;
   const parts = text.split(new RegExp(`(${escapeRegExp(needle)})`, "gi"));
-  return parts.map((part, index) =>
-    index % 2 === 1 ? <mark key={index}>{part}</mark> : part,
-  );
+  return parts.map((part, index) => (index % 2 === 1 ? <mark key={index}>{part}</mark> : part));
 }
 
 function MaterialCard({ item, query }: { item: Material; query: string }) {
   return (
     <article className="card material">
-      <h3 className="material-title">
-        {highlight(item.title ?? "Материал класса", query)}
-      </h3>
-      {item.snippet && (
-        <p className="material-snippet">{highlight(item.snippet, query)}</p>
-      )}
+      <h3 className="material-title">{highlight(item.title ?? "Материал класса", query)}</h3>
+      {item.snippet && <p className="material-snippet">{highlight(item.snippet, query)}</p>}
       <div className="material-meta">
         {item.topic_titles.map((title) => (
           <Chip key={title} tone="neutral">
@@ -79,8 +73,7 @@ function Results({ first, query }: { first: MaterialPage; query: string }) {
       ))}
       {failure && (
         <p className="pagination-error" role="alert">
-          Не удалось загрузить следующие материалы. Загруженные записи остаются
-          на экране.
+          Не удалось загрузить следующие материалы. Загруженные записи остаются на экране.
         </p>
       )}
       {cursor && (
@@ -112,11 +105,7 @@ function Results({ first, query }: { first: MaterialPage; query: string }) {
   );
 }
 
-export function ClassMaterialsScreen({
-  className,
-}: {
-  className: string | null;
-}) {
+export function ClassMaterialsScreen({ className }: { className: string | null }) {
   const [text, setText] = useState("");
   const query = useDebounced(text.trim(), 350);
   const page = useLoader(`materials:${query}`, () => api.materials(query));
@@ -173,10 +162,7 @@ export function ClassMaterialsScreen({
           }}
         />
       </form>
-      <div
-        className="search-results"
-        aria-busy={page.state === "loading" || text.trim() !== query}
-      >
+      <div className="search-results" aria-busy={page.state === "loading" || text.trim() !== query}>
         {content}
       </div>
     </Screen>

@@ -12,13 +12,7 @@ import {
 } from "../ui/common";
 import { ChartIcon } from "../ui/icons";
 
-export function TeacherTopicRow({
-  topic,
-  students,
-}: {
-  topic: TeacherTopic;
-  students: number;
-}) {
+export function TeacherTopicRow({ topic, students }: { topic: TeacherTopic; students: number }) {
   const total = topic.weak + topic.improving + topic.solid;
   const width = (value: number) => `${(value / Math.max(1, students)) * 100}%`;
   return (
@@ -33,10 +27,7 @@ export function TeacherTopicRow({
         aria-label={`Из ${students} учеников: стоит повторить — ${topic.weak}, закрепляют — ${topic.improving}, освоили — ${topic.solid}, нет данных — ${Math.max(0, students - total)}`}
       >
         <span className="bar-weak" style={{ width: width(topic.weak) }} />
-        <span
-          className="bar-improving"
-          style={{ width: width(topic.improving) }}
-        />
+        <span className="bar-improving" style={{ width: width(topic.improving) }} />
         <span className="bar-solid" style={{ width: width(topic.solid) }} />
       </div>
       <dl className="teacher-legend">
@@ -58,9 +49,7 @@ export function TeacherTopicRow({
         </div>
       </dl>
       {topic.top_error_type && (
-        <p className="teacher-error">
-          Частая ошибка: {topic.top_error_type.title}
-        </p>
+        <p className="teacher-error">Частая ошибка: {topic.top_error_type.title}</p>
       )}
     </article>
   );
@@ -80,11 +69,7 @@ export function TeacherScreen() {
       />
       {summary.state === "loading" && <SkeletonCards count={3} height={160} />}
       {summary.state === "error" && (
-        <ErrorState
-          audience="teacher"
-          error={summary.error}
-          onRetry={summary.reload}
-        />
+        <ErrorState audience="teacher" error={summary.error} onRetry={summary.reload} />
       )}
       {data &&
         (!data.school_class ? (
@@ -93,18 +78,13 @@ export function TeacherScreen() {
             title="Класс не подключён"
             action={<ChatAction audience="teacher" />}
           >
-            <p>
-              Подключите класс в личном чате с ботом, чтобы посмотреть сводку.
-            </p>
+            <p>Подключите класс в личном чате с ботом, чтобы посмотреть сводку.</p>
           </EmptyState>
         ) : !data.topics.length ? (
-          <EmptyState
-            icon={<ChartIcon size={28} />}
-            title="Данных по темам пока нет"
-          >
+          <EmptyState icon={<ChartIcon size={28} />} title="Данных по темам пока нет">
             <p>
-              Сводка появится после разборов и тестов учеников класса.
-              Отсутствие данных не означает освоение темы.
+              Сводка появится после разборов и тестов учеников класса. Отсутствие данных не означает
+              освоение темы.
             </p>
           </EmptyState>
         ) : (
@@ -114,13 +94,10 @@ export function TeacherScreen() {
               <strong>
                 {data.students_with_gaps} из {data.students_total} учеников
               </strong>
-              <p>
-                В сводке только количества по темам, без имён и личных работ.
-              </p>
+              <p>В сводке только количества по темам, без имён и личных работ.</p>
             </section>
             <p className="footnote">
-              Полная ширина полосы — весь класс. Незаполненная часть — ученики
-              без данных по теме.
+              Полная ширина полосы — весь класс. Незаполненная часть — ученики без данных по теме.
             </p>
             <section className="stack" aria-label="Распределение по темам">
               {[...data.topics]
@@ -131,11 +108,7 @@ export function TeacherScreen() {
                     a.title.localeCompare(b.title, "ru"),
                 )
                 .map((topic) => (
-                  <TeacherTopicRow
-                    key={topic.code}
-                    topic={topic}
-                    students={data.students_total}
-                  />
+                  <TeacherTopicRow key={topic.code} topic={topic} students={data.students_total} />
                 ))}
             </section>
           </>

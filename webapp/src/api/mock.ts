@@ -10,12 +10,7 @@ import type {
   TeacherSummary,
 } from "./types";
 
-const notebookLines = [
-  "x² − 5x + 6 = 0",
-  "D = 25 + 24 = 49",
-  "x = (5 ± 7) / 2",
-  "x₁ = 6, x₂ = −1",
-];
+const notebookLines = ["x² − 5x + 6 = 0", "D = 25 + 24 = 49", "x = (5 ± 7) / 2", "x₁ = 6, x₂ = −1"];
 
 function notebookImage(lines: string[], errorIndex: number | null): string {
   const rows = lines
@@ -38,8 +33,7 @@ function bboxFor(index: number) {
 }
 
 const now = Date.now();
-const hoursAgo = (hours: number) =>
-  new Date(now - hours * 3_600_000).toISOString();
+const hoursAgo = (hours: number) => new Date(now - hours * 3_600_000).toISOString();
 
 const me: Me = {
   id: 1,
@@ -75,9 +69,7 @@ const gaps: GapMap = {
       correct_total: 0,
       last_mistake_at: hoursAgo(30),
       next_review_at: hoursAgo(-20),
-      error_types: [
-        { code: "fractions", title: "Действия с дробями", count: 2 },
-      ],
+      error_types: [{ code: "fractions", title: "Действия с дробями", count: 2 }],
     },
     {
       code: "alg.roots",
@@ -260,12 +252,8 @@ const quiz: Quiz = {
   ].map((item, position) => ({
     id: 100 + position,
     position,
-    topic_code:
-      position === 2 || position === 4 ? "arith.fractions" : "alg.quadratic_eq",
-    topic_title:
-      position === 2 || position === 4
-        ? "Действия с дробями"
-        : "Квадратные уравнения",
+    topic_code: position === 2 || position === 4 ? "arith.fractions" : "alg.quadratic_eq",
+    topic_title: position === 2 || position === 4 ? "Действия с дробями" : "Квадратные уравнения",
     prompt: item.prompt,
     choices: item.choices.map((text, index) => ({ index, text })),
     from_gap_map: position !== 3,
@@ -311,8 +299,7 @@ const materials: Material[] = [
   {
     id: 1,
     title: "Дискриминант",
-    snippet:
-      "D = b² − 4ac. Если D > 0 — два корня, D = 0 — один, D < 0 — корней нет.",
+    snippet: "D = b² − 4ac. Если D > 0 — два корня, D = 0 — один, D < 0 — корней нет.",
     topic_titles: ["Квадратные уравнения"],
     created_at: hoursAgo(120),
   },
@@ -355,8 +342,7 @@ const teacher: TeacherSummary = {
 };
 
 function delay<T>(value: T, ms = 450): Promise<T> {
-  if (!navigator.onLine)
-    return Promise.reject(new ApiError("network", 0, "offline"));
+  if (!navigator.onLine) return Promise.reject(new ApiError("network", 0, "offline"));
   return new Promise((resolve) =>
     setTimeout(() => {
       resolve(structuredClone(value));
@@ -389,13 +375,10 @@ function quizCounts(): void {
 const baseMockApi: Api = {
   me: () => delay(me),
   gaps: () => delay(gaps),
-  submissions: () =>
-    delay({ items: submissionDetails.map(toSummary), next_cursor: null }),
+  submissions: () => delay({ items: submissionDetails.map(toSummary), next_cursor: null }),
   submission: (id) => {
     const found = submissionDetails.find((item) => item.id === id);
-    return found
-      ? delay(found)
-      : Promise.reject(new ApiError("not_found", 404, "not found"));
+    return found ? delay(found) : Promise.reject(new ApiError("not_found", 404, "not found"));
   },
   activeQuiz: () => {
     const summary = {
@@ -411,9 +394,7 @@ const baseMockApi: Api = {
     return delay({ quiz: quiz.status === "active" ? summary : null });
   },
   quiz: (id) =>
-    id === quiz.id
-      ? delay(quiz)
-      : Promise.reject(new ApiError("not_found", 404, "not found")),
+    id === quiz.id ? delay(quiz) : Promise.reject(new ApiError("not_found", 404, "not found")),
   answer: (_quizId, itemId, choiceIndex) => {
     const item = quiz.items.find((candidate) => candidate.id === itemId);
     const correctIndex = correctAnswers.get(itemId);
@@ -433,8 +414,7 @@ const baseMockApi: Api = {
       chosen_index: chosen,
       correct_index: correctIndex,
       is_correct: chosen === correctIndex,
-      explanation:
-        chosen === correctIndex ? null : (explanations.get(itemId) ?? null),
+      explanation: chosen === correctIndex ? null : (explanations.get(itemId) ?? null),
       already_answered: alreadyAnswered,
       quiz_status: quiz.status,
       answered: quiz.answered,
@@ -451,9 +431,7 @@ const baseMockApi: Api = {
           })),
         ),
       );
-    } catch {
-      /* Memory-only demo remains usable. */
-    }
+    } catch {}
     return delay(result, 650);
   },
   materials: (q) => {
@@ -468,24 +446,15 @@ const baseMockApi: Api = {
   teacherSummary: () => delay(teacher),
 };
 
-// Development fixtures never enter the production API path. All names/data are synthetic.
 const options = new URLSearchParams(location.search);
 const scenario = options.get("scenario") ?? "default";
 const storageKey = `yasno-demo-quiz:${scenario}`;
 try {
-  const stored: unknown = JSON.parse(
-    sessionStorage.getItem(storageKey) ?? "null",
-  );
+  const stored: unknown = JSON.parse(sessionStorage.getItem(storageKey) ?? "null");
   if (Array.isArray(stored))
     for (const value of stored) {
       const row: unknown = value;
-      if (
-        !row ||
-        typeof row !== "object" ||
-        !("id" in row) ||
-        !("chosen" in row)
-      )
-        continue;
+      if (!row || typeof row !== "object" || !("id" in row) || !("chosen" in row)) continue;
       const item = quiz.items.find((entry) => entry.id === row.id);
       const chosen: unknown = row.chosen;
       if (
@@ -498,9 +467,7 @@ try {
         item.is_correct = chosen === item.correct_index;
       }
     }
-} catch {
-  /* A fresh demo works without readable storage. */
-}
+} catch {}
 quizCounts();
 if (scenario === "completed") {
   for (const item of quiz.items) {
@@ -520,8 +487,7 @@ async function before(operation: string) {
     (scenario === "forbidden" && operation !== "me") ||
     (scenario === "not-found" && ["submission", "quiz"].includes(operation))
   ) {
-    const status =
-      scenario === "auth" ? 401 : scenario === "forbidden" ? 403 : 404;
+    const status = scenario === "auth" ? 401 : scenario === "forbidden" ? 403 : 404;
     throw new ApiError(
       status === 401 ? "auth" : status === 403 ? "forbidden" : "not_found",
       status,
@@ -575,9 +541,7 @@ export const mockApi: Api = {
         throw new ApiError("network", 0, "demo");
       }
       return delay({
-        items: submissionDetails
-          .slice(cursor ? 2 : 0, cursor ? undefined : 2)
-          .map(toSummary),
+        items: submissionDetails.slice(cursor ? 2 : 0, cursor ? undefined : 2).map(toSummary),
         next_cursor: cursor ? null : "2",
       });
     }
@@ -628,13 +592,9 @@ export const mockApi: Api = {
     return baseMockApi.quiz(id);
   },
   answer: async (quizId, itemId, index) => {
-    if (
-      ["answer-error", "answer-saved"].includes(scenario) &&
-      !failed.has("answer")
-    ) {
+    if (["answer-error", "answer-saved"].includes(scenario) && !failed.has("answer")) {
       failed.add("answer");
-      if (scenario === "answer-saved")
-        await baseMockApi.answer(quizId, itemId, index);
+      if (scenario === "answer-saved") await baseMockApi.answer(quizId, itemId, index);
       await new Promise((resolve) => setTimeout(resolve, 400));
       throw new ApiError("network", 0, "demo");
     }
@@ -642,10 +602,8 @@ export const mockApi: Api = {
   },
   materials: async (q, cursor) => {
     await before("materials");
-    if (scenario === "no-class")
-      return delay({ has_class: false, items: [], next_cursor: null });
-    if (scenario === "empty")
-      return delay({ has_class: true, items: [], next_cursor: null });
+    if (scenario === "no-class") return delay({ has_class: false, items: [], next_cursor: null });
+    if (scenario === "empty") return delay({ has_class: true, items: [], next_cursor: null });
     const data = await baseMockApi.materials(q);
     if (scenario === "pagination-error" && !q) {
       if (cursor && !failed.has("materials-more")) {
@@ -671,8 +629,7 @@ export const mockApi: Api = {
         students_total: 0,
         students_with_gaps: 0,
       };
-    if (scenario === "empty")
-      return { ...data, topics: [], students_with_gaps: 0 };
+    if (scenario === "empty") return { ...data, topics: [], students_with_gaps: 0 };
     return data;
   },
 };

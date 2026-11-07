@@ -30,13 +30,7 @@ function StatusIcon({ item }: { item: Submission }) {
   }
   return (
     <span className={`status-icon status-${tone}`} aria-hidden="true">
-      {tone === "solid" ? (
-        <CheckIcon size={20} />
-      ) : tone === "weak" ? (
-        <CrossIcon size={20} />
-      ) : (
-        "?"
-      )}
+      {tone === "solid" ? <CheckIcon size={20} /> : tone === "weak" ? <CrossIcon size={20} /> : "?"}
     </span>
   );
 }
@@ -112,14 +106,9 @@ export function SubmissionsScreen() {
   const page = useLoader("submissions", () => api.submissions());
   return (
     <Screen label="Разборы">
-      <ScreenHeader
-        title="Разборы"
-        subtitle="Решения и подсказки из личного чата"
-      />
+      <ScreenHeader title="Разборы" subtitle="Решения и подсказки из личного чата" />
       {page.state === "loading" && <SkeletonCards count={5} height={64} />}
-      {page.state === "error" && (
-        <ErrorState error={page.error} onRetry={page.reload} />
-      )}
+      {page.state === "error" && <ErrorState error={page.error} onRetry={page.reload} />}
       {page.state === "ready" &&
         (page.data.items.length === 0 ? (
           <EmptyState
@@ -128,8 +117,8 @@ export function SubmissionsScreen() {
             action={<ChatAction primary />}
           >
             <p>
-              Отправь фото решения боту в личный чат. Здесь можно будет
-              вернуться к результату проверки и подсказке.
+              Отправь фото решения боту в личный чат. Здесь можно будет вернуться к результату
+              проверки и подсказке.
             </p>
           </EmptyState>
         ) : (

@@ -1,0 +1,8 @@
+node_modules/
+.venv/
+webapp/dist/
+webapp/artifacts/
+webapp/package-lock.json
+dist/
+artifacts/
+package-lock.json

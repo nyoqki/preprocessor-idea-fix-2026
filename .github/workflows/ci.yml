@@ -51,7 +51,7 @@ jobs:
       - run: uv run ruff format --check
       - run: uv run ruff check
       - run: uv run mypy
-      - run: uv export --locked --no-dev --no-hashes --no-emit-project --no-header --format requirements-txt | diff - requirements.txt
+      - run: uv export --no-annotate --locked --no-dev --no-hashes --no-emit-project --no-header --format requirements-txt | diff - requirements.txt
       - run: uv run yasno migrate
       - run: uv run pytest
 
@@ -68,6 +68,7 @@ jobs:
           cache: npm
           cache-dependency-path: webapp/package-lock.json
       - run: npm ci
+      - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build

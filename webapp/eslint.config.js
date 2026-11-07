@@ -22,6 +22,7 @@ export default tseslint.config(
       "react-refresh": reactRefresh,
     },
     rules: {
+      "no-empty": ["error", { allowEmptyCatch: true }],
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["error", { allowConstantExport: true }],
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],

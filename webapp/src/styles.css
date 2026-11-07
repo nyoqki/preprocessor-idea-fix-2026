@@ -1,4 +1,3 @@
-/* Yasno B. MAX UI owns platform typography and primitives; semantic roles live here. */
 :root {
   color-scheme: light;
   -webkit-text-size-adjust: 100%;
@@ -78,7 +77,7 @@ html[data-scheme="dark"] {
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --tabbar-height: 76px;
-  /* Public MAX UI tokens; action-label is scoped to Action below. */
+
   --background-surface: var(--yasno-canvas);
   --background-primary: var(--yasno-surface);
   --background-card: var(--yasno-surface-raised);
@@ -100,14 +99,7 @@ html[data-scheme="dark"] {
   min-height: 100dvh;
   background: var(--yasno-canvas);
   color: var(--yasno-text-primary);
-  font-family: var(
-    --family-base,
-    -apple-system,
-    system-ui,
-    "Segoe UI",
-    Roboto,
-    sans-serif
-  );
+  font-family: var(--family-base, -apple-system, system-ui, "Segoe UI", Roboto, sans-serif);
   font-size: 16px;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -173,7 +165,6 @@ html[data-scheme="dark"] {
   overflow-wrap: anywhere;
 }
 .yasno .action-primary {
-  /* This public token is normally used for primary Button foreground. Never override it globally. */
   --text-primary-inverse-static: var(--yasno-action-label);
   --states-text-primary-inverse-static-disabled: var(--yasno-disabled-label);
   --gradients-loading-icon-contrast-static-filled: var(--yasno-action-label);
@@ -231,8 +222,7 @@ html[data-scheme="dark"] {
   max-width: 640px;
   margin: 0 auto;
   padding: calc(var(--safe-top) + 16px) calc(var(--safe-right) + 16px)
-    calc(var(--safe-bottom) + var(--tabbar-height) + 24px)
-    calc(var(--safe-left) + 16px);
+    calc(var(--safe-bottom) + var(--tabbar-height) + 24px) calc(var(--safe-left) + 16px);
 }
 .shell-focus {
   padding-bottom: calc(var(--safe-bottom) + 32px);

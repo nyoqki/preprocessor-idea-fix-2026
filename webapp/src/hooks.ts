@@ -19,9 +19,7 @@ export function useLoader<T>(
   loader: () => Promise<T>,
 ): Loadable<T> & { reload: () => void; setData: (data: T) => void } {
   const loaderRef = useRef(loader);
-  const pendingRef = useRef<{ token: string; promise: Promise<T> } | null>(
-    null,
-  );
+  const pendingRef = useRef<{ token: string; promise: Promise<T> } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{
     token: string;
@@ -35,7 +33,7 @@ export function useLoader<T>(
 
   useEffect(() => {
     let cancelled = false;
-    // Reuse the in-flight request when StrictMode replays this effect.
+
     if (pendingRef.current?.token !== token) {
       pendingRef.current = {
         token,
@@ -44,12 +42,10 @@ export function useLoader<T>(
     }
     pendingRef.current.promise.then(
       (data) => {
-        if (!cancelled)
-          setResult({ token, value: { state: "ready", data, error: null } });
+        if (!cancelled) setResult({ token, value: { state: "ready", data, error: null } });
       },
       (error: unknown) => {
-        if (!cancelled)
-          setResult({ token, value: { state: "error", data: null, error } });
+        if (!cancelled) setResult({ token, value: { state: "error", data: null, error } });
       },
     );
     return () => {
@@ -100,9 +96,7 @@ export function useColorScheme(): "light" | "dark" {
   return useSyncExternalStore(
     subscribeScheme,
     () => {
-      const demo = import.meta.env.DEV
-        ? new URLSearchParams(location.search).get("theme")
-        : null;
+      const demo = import.meta.env.DEV ? new URLSearchParams(location.search).get("theme") : null;
       return demo === "dark" || demo === "light"
         ? demo
         : window.matchMedia(darkQuery).matches

@@ -9,14 +9,8 @@ interface MaxBackButton {
 }
 
 interface MaxHaptics {
-  impactOccurred?: (
-    style: Impact,
-    disableVibrationFallback?: boolean,
-  ) => unknown;
-  notificationOccurred?: (
-    type: Notification,
-    disableVibrationFallback?: boolean,
-  ) => unknown;
+  impactOccurred?: (style: Impact, disableVibrationFallback?: boolean) => unknown;
+  notificationOccurred?: (type: Notification, disableVibrationFallback?: boolean) => unknown;
   selectionChanged?: (disableVibrationFallback?: boolean) => unknown;
 }
 
@@ -114,9 +108,7 @@ export function hasBackButton(): boolean {
   return (
     isInsideMax() &&
     Boolean(
-      webApp()?.BackButton?.show &&
-        webApp()?.BackButton?.onClick &&
-        webApp()?.BackButton?.offClick,
+      webApp()?.BackButton?.show && webApp()?.BackButton?.onClick && webApp()?.BackButton?.offClick,
     )
   );
 }
@@ -147,7 +139,6 @@ export function openLink(url: string): void {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-// Optional public build configuration; never infer or expose the server bot token.
 export function botUrl(): string | null {
   const username: unknown = import.meta.env.VITE_BOT_USERNAME;
   return typeof username === "string" && /^[A-Za-z0-9_]{3,64}$/.test(username)
@@ -162,9 +153,7 @@ export function observeViewport(): () => void {
     const viewport = window.visualViewport;
     const editing = document.activeElement instanceof HTMLInputElement;
     document.documentElement.dataset.keyboard = String(
-      Boolean(
-        editing && viewport && window.innerHeight - viewport.height > 150,
-      ),
+      Boolean(editing && viewport && window.innerHeight - viewport.height > 150),
     );
     const app = webApp();
     if (isInsideMax() && app?.getViewportSize) {
@@ -174,16 +163,11 @@ export function observeViewport(): () => void {
           .then(({ height }) => {
             const pixels = Number.parseFloat(height);
             if (!disposed && Number.isFinite(pixels) && pixels > 0) {
-              document.documentElement.style.setProperty(
-                "--yasno-viewport-height",
-                `${pixels}px`,
-              );
+              document.documentElement.style.setProperty("--yasno-viewport-height", `${pixels}px`);
             }
           })
           .catch(() => undefined);
-      } catch {
-        /* Older clients use CSS dynamic viewport units. */
-      }
+      } catch {}
     }
   };
   const schedule = () => {

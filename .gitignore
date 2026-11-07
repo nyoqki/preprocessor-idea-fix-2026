@@ -17,3 +17,4 @@ data/
 *.log
 .idea/
 .vscode/
+webapp/artifacts/

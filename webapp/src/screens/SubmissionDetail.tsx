@@ -19,8 +19,7 @@ import {
 } from "../ui/common";
 import { SparkIcon } from "../ui/icons";
 
-const percent = (value: number) =>
-  `${Math.min(100, Math.max(0, value * 100))}%`;
+const percent = (value: number) => `${Math.min(100, Math.max(0, value * 100))}%`;
 
 export function Photo({
   url,
@@ -85,9 +84,7 @@ export function Photo({
         )}
       </div>
       {bbox && step && (
-        <figcaption>
-          Рамкой выделен шаг {step}. Он отмечен и в списке ниже.
-        </figcaption>
+        <figcaption>Рамкой выделен шаг {step}. Он отмечен и в списке ниже.</figcaption>
       )}
     </figure>
   );
@@ -157,8 +154,7 @@ export function SubmissionDetailScreen({ id }: { id: number }) {
             error={detail.error}
             onRetry={detail.reload}
             title={
-              detail.error instanceof ApiError &&
-              detail.error.kind === "not_found"
+              detail.error instanceof ApiError && detail.error.kind === "not_found"
                 ? "Разбор недоступен"
                 : undefined
             }
@@ -172,12 +168,9 @@ export function SubmissionDetailScreen({ id }: { id: number }) {
       </Screen>
     );
   const item = detail.data;
-  // API line.index is zero based; never substitute the array position for this index.
-  const errorLine = item.lines.find(
-    (line) => line.index === item.first_error_step,
-  );
-  const step =
-    item.first_error_step === null ? null : item.first_error_step + 1;
+
+  const errorLine = item.lines.find((line) => line.index === item.first_error_step);
+  const step = item.first_error_step === null ? null : item.first_error_step + 1;
   const isError = item.status === "done" && item.verdict === "error";
   return (
     <Screen label="Разбор">
@@ -194,16 +187,9 @@ export function SubmissionDetailScreen({ id }: { id: number }) {
       )}
       {(["queued", "processing"].includes(item.status) ||
         (item.status === "done" &&
-          !["correct", "error", "incomplete", "review"].includes(
-            item.verdict ?? "",
-          ))) &&
+          !["correct", "error", "incomplete", "review"].includes(item.verdict ?? ""))) &&
         refreshError === null && (
-          <Action
-            variant="secondary"
-            size="medium"
-            loading={refreshing}
-            onClick={refresh}
-          >
+          <Action variant="secondary" size="medium" loading={refreshing} onClick={refresh}>
             Обновить состояние
           </Action>
         )}
@@ -227,10 +213,7 @@ export function SubmissionDetailScreen({ id }: { id: number }) {
             {item.lines.map((line) => {
               const marked = isError && line.index === item.first_error_step;
               return (
-                <li
-                  key={line.index}
-                  className={marked ? "line line-error" : "line"}
-                >
+                <li key={line.index} className={marked ? "line line-error" : "line"}>
                   <span className="line-number">{line.index + 1}</span>
                   <span
                     className="line-math"
@@ -241,9 +224,7 @@ export function SubmissionDetailScreen({ id }: { id: number }) {
                   </span>
                   {marked && <span className="line-flag">Проверь шаг</span>}
                   {line.confidence < 0.6 && (
-                    <span className="line-uncertain">
-                      Запись нужно уточнить
-                    </span>
+                    <span className="line-uncertain">Запись нужно уточнить</span>
                   )}
                 </li>
               );
@@ -251,22 +232,18 @@ export function SubmissionDetailScreen({ id }: { id: number }) {
           </ol>
         </section>
       )}
-      {item.analysis?.hint &&
-        item.status === "done" &&
-        item.verdict !== "correct" && (
-          <section className="card hint-card" aria-label="Подсказка">
-            <div className="hint-head">
-              <SparkIcon size={20} />
-              <h2 className="card-title">
-                {isError && step ? `Подсказка к шагу ${step}` : "Подсказка"}
-              </h2>
-            </div>
-            {isError && item.error_title && (
-              <Chip tone="weak">{item.error_title}</Chip>
-            )}
-            <p className="hint-text">{item.analysis.hint}</p>
-          </section>
-        )}
+      {item.analysis?.hint && item.status === "done" && item.verdict !== "correct" && (
+        <section className="card hint-card" aria-label="Подсказка">
+          <div className="hint-head">
+            <SparkIcon size={20} />
+            <h2 className="card-title">
+              {isError && step ? `Подсказка к шагу ${step}` : "Подсказка"}
+            </h2>
+          </div>
+          {isError && item.error_title && <Chip tone="weak">{item.error_title}</Chip>}
+          <p className="hint-text">{item.analysis.hint}</p>
+        </section>
+      )}
       {item.verdict !== "correct" && <ChatAction />}
     </Screen>
   );

@@ -3,14 +3,7 @@ import { useEffect } from "react";
 import { api, ApiError, isMock } from "./api";
 import { useLoader, useOnline } from "./hooks";
 import { observeViewport, ready, showBackButton, startParam } from "./max";
-import {
-  goBack,
-  navigate,
-  parentOf,
-  routeFromStartParam,
-  tabOf,
-  useRoute,
-} from "./router";
+import { goBack, navigate, parentOf, routeFromStartParam, tabOf, useRoute } from "./router";
 import { ClassMaterialsScreen } from "./screens/ClassMaterials";
 import { GapMapScreen } from "./screens/GapMap";
 import { QuizScreen } from "./screens/Quiz";
@@ -61,11 +54,7 @@ export function App() {
       </div>
     );
 
-  if (
-    me.state === "error" &&
-    me.error instanceof ApiError &&
-    me.error.kind === "auth"
-  ) {
+  if (me.state === "error" && me.error instanceof ApiError && me.error.kind === "auth") {
     return (
       <div className="shell shell-focus">
         <Screen label="Ясно">
@@ -103,11 +92,7 @@ export function App() {
         screen = <QuizScreen key={route.id} id={route.id} />;
         break;
       case "class":
-        screen = (
-          <ClassMaterialsScreen
-            className={profile?.school_class?.title ?? null}
-          />
-        );
+        screen = <ClassMaterialsScreen className={profile?.school_class?.title ?? null} />;
         break;
       case "teacher":
         screen =
@@ -120,9 +105,7 @@ export function App() {
           ) : (
             <Screen label="Учитель">
               <ScreenHeader title="Темы класса" />
-              <ErrorState
-                error={new ApiError("forbidden", 403, "teacher_only")}
-              />
+              <ErrorState error={new ApiError("forbidden", 403, "teacher_only")} />
             </Screen>
           );
         break;
@@ -133,8 +116,7 @@ export function App() {
     <div className={route.name === "quiz" ? "shell shell-focus" : "shell"}>
       {!online && (
         <div className="offline" role="status">
-          Нет интернета. Уже загруженные данные доступны, новые запросы могут не
-          пройти.
+          Нет интернета. Уже загруженные данные доступны, новые запросы могут не пройти.
         </div>
       )}
       {isMock && <div className="mock-badge">Ясно · демо-данные</div>}

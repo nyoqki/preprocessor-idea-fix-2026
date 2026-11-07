@@ -6,15 +6,7 @@ import type { AnswerResult, Quiz, QuizItem } from "../api/types";
 import { countLabel } from "../format";
 import { useLoader } from "../hooks";
 import { goBack, navigate } from "../router";
-import {
-  Action,
-  Chip,
-  EmptyState,
-  ErrorState,
-  Screen,
-  ScreenHeader,
-  Skeleton,
-} from "../ui/common";
+import { Action, Chip, EmptyState, ErrorState, Screen, ScreenHeader, Skeleton } from "../ui/common";
 import { CheckIcon, CrossIcon, SparkIcon } from "../ui/icons";
 
 const LETTERS = ["А", "Б", "В", "Г", "Д", "Е"];
@@ -63,9 +55,7 @@ function Results({ quiz }: { quiz: Quiz }) {
   }, []);
   const repeat = [
     ...new Set(
-      quiz.items
-        .filter((item) => item.is_correct === false)
-        .map((item) => item.topic_title),
+      quiz.items.filter((item) => item.is_correct === false).map((item) => item.topic_title),
     ),
   ];
   return (
@@ -106,12 +96,8 @@ function Results({ quiz }: { quiz: Quiz }) {
 
 function QuizRunner({ initial }: { initial: Quiz }) {
   const [quiz, setQuiz] = useState(initial);
-  const firstOpen = initial.items.findIndex(
-    (item) => item.answered_index === null,
-  );
-  const [position, setPosition] = useState(
-    firstOpen === -1 ? initial.items.length : firstOpen,
-  );
+  const firstOpen = initial.items.findIndex((item) => item.answered_index === null);
+  const [position, setPosition] = useState(firstOpen === -1 ? initial.items.length : firstOpen);
   const [result, setResult] = useState<AnswerResult | null>(null);
   const [pending, setPending] = useState<number | null>(null);
   const [failure, setFailure] = useState<{
@@ -157,9 +143,7 @@ function QuizRunner({ initial }: { initial: Quiz }) {
       if (recover) {
         const current = await api.quiz(quiz.id);
         setQuiz(current);
-        const saved = current.items.find(
-          (candidate) => candidate.id === item.id,
-        );
+        const saved = current.items.find((candidate) => candidate.id === item.id);
         const savedResult = saved ? resultFromItem(saved, current) : null;
         if (savedResult) {
           accept(savedResult);
@@ -219,9 +203,7 @@ function QuizRunner({ initial }: { initial: Quiz }) {
                 void choose(choice.index);
               }}
             >
-              <span className="choice-letter">
-                {LETTERS[choice.index] ?? choice.index + 1}
-              </span>
+              <span className="choice-letter">{LETTERS[choice.index] ?? choice.index + 1}</span>
               <span className="choice-body">
                 <span className="choice-text">{choice.text}</span>
                 {shown && (correct || chosen) && (
@@ -232,9 +214,7 @@ function QuizRunner({ initial }: { initial: Quiz }) {
                   </span>
                 )}
               </span>
-              {pending === choice.index && (
-                <Spinner size={20} appearance="themed" />
-              )}
+              {pending === choice.index && <Spinner size={20} appearance="themed" />}
               {shown && correct && <CheckIcon size={20} />}
               {shown && chosen && !correct && <CrossIcon size={20} />}
             </button>
@@ -248,19 +228,16 @@ function QuizRunner({ initial }: { initial: Quiz }) {
       )}
       {failure && (
         <div className="inline-error" role="alert">
-          {failure.error instanceof ApiError &&
-          [401, 403, 404].includes(failure.error.status) ? (
+          {failure.error instanceof ApiError && [401, 403, 404].includes(failure.error.status) ? (
             <ErrorState
               error={failure.error}
-              title={
-                failure.error.status === 404 ? "Тест недоступен" : undefined
-              }
+              title={failure.error.status === 404 ? "Тест недоступен" : undefined}
             />
           ) : (
             <>
               <p>
-                Подтверждение ответа не получено. Он мог сохраниться. Проверь
-                подключение: приложение сверит ответ с сервером перед повтором.
+                Подтверждение ответа не получено. Он мог сохраниться. Проверь подключение:
+                приложение сверит ответ с сервером перед повтором.
               </p>
               <Action
                 variant="secondary"
@@ -283,17 +260,11 @@ function QuizRunner({ initial }: { initial: Quiz }) {
             role="status"
           >
             <strong>{shown.is_correct ? "Верно" : "Ответ не совпал"}</strong>
-            {shown.already_answered && (
-              <span>Показан ранее сохранённый ответ.</span>
-            )}
+            {shown.already_answered && <span>Показан ранее сохранённый ответ.</span>}
             {!shown.is_correct && (
               <span>
                 Верный ответ:{" "}
-                {
-                  item.choices.find(
-                    (choice) => choice.index === shown.correct_index,
-                  )?.text
-                }
+                {item.choices.find((choice) => choice.index === shown.correct_index)?.text}
               </span>
             )}
             {shown.explanation && <span>{shown.explanation}</span>}

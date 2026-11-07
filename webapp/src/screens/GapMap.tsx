@@ -23,16 +23,10 @@ function QuizCta({ quiz }: { quiz: QuizSummary }) {
     <section className="cta-card" aria-label="Актуальный тест">
       <div className="eyebrow">
         <SparkIcon size={18} />
-        {quiz.reason === "exam"
-          ? "Перед контрольной"
-          : "Тренировка по твоим темам"}
+        {quiz.reason === "exam" ? "Перед контрольной" : "Тренировка по твоим темам"}
       </div>
-      <h2 className="cta-title">
-        {started ? "Продолжим тренировку" : "Короткий тест"}
-      </h2>
-      <p className="cta-text">
-        {quiz.topic_titles.join(" · ") || "Темы из твоей карты"}
-      </p>
+      <h2 className="cta-title">{started ? "Продолжим тренировку" : "Короткий тест"}</h2>
+      <p className="cta-text">{quiz.topic_titles.join(" · ") || "Темы из твоей карты"}</p>
       <p className="cta-detail">
         {countLabel(quiz.total, "вопрос", "вопроса", "вопросов")}
         {started && ` · отвечено ${quiz.answered} из ${quiz.total}`}
@@ -62,19 +56,11 @@ function TopicCard({ topic }: { topic: TopicGap }) {
         {review && <span className="muted">{review}</span>}
       </div>
       {topic.status !== "solid" && topic.error_types.length > 0 && (
-        <p className="topic-errors">
-          {topic.error_types.map((error) => error.title).join(" · ")}
-        </p>
+        <p className="topic-errors">{topic.error_types.map((error) => error.title).join(" · ")}</p>
       )}
       <p className="topic-history">
-        За всё время:{" "}
-        {countLabel(topic.mistakes_total, "ошибка", "ошибки", "ошибок")} ·{" "}
-        {countLabel(
-          topic.correct_total,
-          "верный ответ",
-          "верных ответа",
-          "верных ответов",
-        )}
+        За всё время: {countLabel(topic.mistakes_total, "ошибка", "ошибки", "ошибок")} ·{" "}
+        {countLabel(topic.correct_total, "верный ответ", "верных ответа", "верных ответов")}
       </p>
     </article>
   );
@@ -88,11 +74,7 @@ export function GapMapScreen({ me }: { me: Me | null }) {
     <Screen label="Карта тем">
       <ScreenHeader
         title="Карта тем"
-        subtitle={
-          me?.grade
-            ? `Математика · ${me.grade} класс`
-            : "Математика · твои темы"
-        }
+        subtitle={me?.grade ? `Математика · ${me.grade} класс` : "Математика · твои темы"}
       />
       {active.state === "loading" && <SkeletonCards count={1} height={180} />}
       {active.state === "error" && (
@@ -102,9 +84,7 @@ export function GapMapScreen({ me }: { me: Me | null }) {
       )}
       {active.data?.quiz && <QuizCta quiz={active.data.quiz} />}
       {gaps.state === "loading" && <SkeletonCards count={3} />}
-      {gaps.state === "error" && (
-        <ErrorState error={gaps.error} onRetry={gaps.reload} />
-      )}
+      {gaps.state === "error" && <ErrorState error={gaps.error} onRetry={gaps.reload} />}
       {data &&
         (data.topics.length === 0 ? (
           <EmptyState
@@ -113,8 +93,8 @@ export function GapMapScreen({ me }: { me: Me | null }) {
             action={<ChatAction primary />}
           >
             <p>
-              Отправь фото своего решения боту в личный чат. После разбора здесь
-              появятся темы для повторения.
+              Отправь фото своего решения боту в личный чат. После разбора здесь появятся темы для
+              повторения.
             </p>
           </EmptyState>
         ) : (
@@ -135,9 +115,7 @@ export function GapMapScreen({ me }: { me: Me | null }) {
                 <TopicCard key={topic.code} topic={topic} />
               ))}
             </section>
-            <p className="footnote">
-              Карта отражает темы из твоих разборов и тестов.
-            </p>
+            <p className="footnote">Карта отражает темы из твоих разборов и тестов.</p>
           </>
         ))}
     </Screen>

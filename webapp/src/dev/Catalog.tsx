@@ -109,8 +109,7 @@ export default function Catalog() {
           variant="secondary"
           onClick={() => {
             for (const key of Object.keys(sessionStorage))
-              if (key.startsWith("yasno-demo-quiz:"))
-                sessionStorage.removeItem(key);
+              if (key.startsWith("yasno-demo-quiz:")) sessionStorage.removeItem(key);
             setClicks(0);
           }}
         >

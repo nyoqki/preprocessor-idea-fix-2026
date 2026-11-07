@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Restricted SSH entrypoint for checked GitHub Actions image releases."""
+
 
 from __future__ import annotations
 
@@ -49,8 +49,7 @@ def parse_credentials(data: bytes) -> Credentials:
     user, token = body.get("registry_user"), body.get("registry_token")
     if not isinstance(user, str) or not re.fullmatch(r"[A-Za-z0-9_\[\]-]{1,128}", user):
         raise ValueError("Invalid registry user")
-    # Registry credentials are opaque. GitHub can change their length and alphabet.
-    # Only bound the payload and reject controls/whitespace before password-stdin.
+
     if (
         not isinstance(token, str)
         or not 20 <= len(token) <= 8192
@@ -117,14 +116,14 @@ def services_for(config: Config) -> list[str]:
         try:
             image_of("poller")
         except subprocess.CalledProcessError:
-            pass  # A removed poller means this server uses the webhook.
+            pass
         else:
             selected.append("poller")
     return selected
 
 
 def check_ready(config: Config) -> None:
-    # Health checks must bypass any workstation/server HTTP proxy.
+
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(config.ready_url, timeout=10) as response:
         body = json.load(response)
@@ -187,7 +186,7 @@ def deploy(commit: str, digest: str, credentials: Credentials, config: Config) -
         write_json(
             rollback, {"services": {name: {"image": image} for name, image in previous.items()}}
         )
-        # Pin the previous images so normal image pruning cannot discard the rollback.
+
         for name, image in previous.items():
             run(["docker", "tag", image, f"yasno:rollback-{timestamp}-{name}"])
         with (backup / "database.dump").open("wb") as dump:
@@ -274,7 +273,6 @@ def main() -> int:
         print(json.dumps(result))
         return 0
     except Exception as error:
-        # Never print stdin, registry credentials, environment, or subprocess stderr.
         print(f"Deployment failed: {type(error).__name__}: {error}", file=sys.stderr)
         return 1
 

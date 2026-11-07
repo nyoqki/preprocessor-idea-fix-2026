@@ -6,18 +6,14 @@ import { chromium } from "playwright-core";
 
 const base = process.env.YASNO_DEMO_URL ?? "http://127.0.0.1:5183";
 const live = process.env.YASNO_HTTP_URL ?? "http://127.0.0.1:5184";
-const evidence = new URL(
-    "../../docs/design/evidence/implementation/",
-    import.meta.url,
-);
+const evidence = new URL("../artifacts/browser/", import.meta.url);
 await mkdir(evidence, { recursive: true });
 const servers = [];
 async function startServer(url, mock) {
     const child = spawn(
         process.execPath,
         [
-            new URL("../node_modules/vite/bin/vite.js", import.meta.url)
-                .pathname,
+            new URL("../node_modules/vite/bin/vite.js", import.meta.url).pathname,
             "--host",
             "127.0.0.1",
             "--port",
@@ -73,14 +69,7 @@ const report = {
     contrastPairs: [],
     viewports: [],
 };
-const routes = [
-    "/map",
-    "/submissions",
-    "/submissions/41",
-    "/quiz/7",
-    "/class",
-    "/teacher",
-];
+const routes = ["/map", "/submissions", "/submissions/41", "/quiz/7", "/class", "/teacher"];
 const names = ["map", "history", "detail", "quiz", "materials", "teacher"];
 async function context(theme = "light", width = 390, height = 844) {
     const ctx = await browser.newContext({
@@ -102,9 +91,7 @@ async function open(page, route = "/map", options = {}) {
     await page.goto(`${base}/?${params}#${route}`);
     await page.locator(".screen h1").waitFor();
     if (options.scenario !== "loading")
-        await page.waitForFunction(
-            () => !document.querySelector('[aria-busy="true"]'),
-        );
+        await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'));
 }
 async function snap(page, name) {
     await page.screenshot({ path: new URL(`${name}.png`, evidence).pathname });
@@ -114,10 +101,7 @@ async function fits(page, label) {
         width: innerWidth,
         document: document.documentElement.scrollWidth,
     }));
-    assert(
-        sizes.document <= sizes.width + 1,
-        `${label}: page overflow ${JSON.stringify(sizes)}`,
-    );
+    assert(sizes.document <= sizes.width + 1, `${label}: page overflow ${JSON.stringify(sizes)}`);
 }
 function rgb(hex) {
     return hex.match(/\w\w/g).map((v) => parseInt(v, 16));
@@ -166,17 +150,12 @@ try {
                 for (const [index, route] of routes.entries()) {
                     await open(page, route);
                     await fits(page, `${theme} ${width} ${route}`);
-                    if (width === 390)
-                        await snap(page, `${names[index]}-${theme}`);
-                    if (width === 320 && route === "/quiz/7")
-                        await snap(page, `quiz-320-${theme}`);
+                    if (width === 390) await snap(page, `${names[index]}-${theme}`);
+                    if (width === 320 && route === "/quiz/7") await snap(page, `quiz-320-${theme}`);
                     if (width === 1280 && route === "/teacher")
                         await snap(page, `teacher-wide-${theme}`);
                     await page.evaluate(() =>
-                        window.scrollTo(
-                            0,
-                            document.documentElement.scrollHeight,
-                        ),
+                        window.scrollTo(0, document.documentElement.scrollHeight),
                     );
                     const overlap = await page.evaluate(() => {
                         const nav = document.querySelector(".tabbar");
@@ -201,8 +180,7 @@ try {
             const style = async () =>
                 button.evaluate((el) => ({
                     bg: getComputedStyle(el).backgroundColor,
-                    label: getComputedStyle(el.querySelector(".action-content"))
-                        .color,
+                    label: getComputedStyle(el.querySelector(".action-content")).color,
                     icon: el.querySelector("svg")
                         ? getComputedStyle(el.querySelector("svg")).color
                         : null,
@@ -227,19 +205,11 @@ try {
                     .first()
                     .evaluate((el) => el.scrollWidth > el.clientWidth),
             );
-            assert.equal(
-                await page.locator(".line-number").nth(1).innerText(),
-                "2",
-            );
-            assert.equal(
-                await page.locator(".photo-label").innerText(),
-                "Шаг 2",
-            );
+            assert.equal(await page.locator(".line-number").nth(1).innerText(), "2");
+            assert.equal(await page.locator(".photo-label").innerText(), "Шаг 2");
             await open(page, "/teacher", { role: "student" });
             assert.equal(await page.locator(".tab").count(), 3);
-            await page
-                .getByRole("heading", { name: "Раздел для учителя" })
-                .waitFor();
+            await page.getByRole("heading", { name: "Раздел для учителя" }).waitFor();
             await open(page, "/map", { role: "teacher" });
             assert.equal(await page.locator(".tab").count(), 4);
             for (const route of routes) {
@@ -250,9 +220,7 @@ try {
                 await fits(page, `200% ${route}`);
             }
             await page.goto(`${base}/?catalog=1`);
-            await page
-                .getByRole("heading", { name: "Ясно · каталог" })
-                .waitFor();
+            await page.getByRole("heading", { name: "Ясно · каталог" }).waitFor();
             await page.getByLabel("Тема", { exact: true }).selectOption(theme);
             await page.getByLabel("Поиск в каталоге").fill("дроби");
             const loading = page.getByRole("button", {
@@ -265,9 +233,7 @@ try {
                     .getPropertyValue("--MaxUi-Spinner_gradient-to")
                     .trim(),
                 height: el.getBoundingClientRect().height,
-                stops: [...el.querySelectorAll("stop")].map(
-                    (s) => getComputedStyle(s).stopColor,
-                ),
+                stops: [...el.querySelectorAll("stop")].map((s) => getComputedStyle(s).stopColor),
             }));
             assert.equal(loadingStyle.bg, "rgb(0, 102, 204)");
             assert.equal(loadingStyle.label, "rgb(255, 255, 255)");
@@ -277,9 +243,7 @@ try {
                 name: "Основная кнопка",
             });
             assert.equal(
-                await mainButton
-                    .locator("svg")
-                    .evaluate((el) => getComputedStyle(el).color),
+                await mainButton.locator("svg").evaluate((el) => getComputedStyle(el).color),
                 "rgb(255, 255, 255)",
             );
             const palette = await page.locator(".yasno").evaluate((el) => {
@@ -319,12 +283,9 @@ try {
                     b = components(bg);
                 return a
                     .slice(0, 3)
-                    .map((v, i) =>
-                        Math.round(v * (a[3] ?? 1) + b[i] * (1 - (a[3] ?? 1))),
-                    );
+                    .map((v, i) => Math.round(v * (a[3] ?? 1) + b[i] * (1 - (a[3] ?? 1))));
             };
-            const hex = (values) =>
-                values.map((v) => v.toString(16).padStart(2, "0")).join("");
+            const hex = (values) => values.map((v) => v.toString(16).padStart(2, "0")).join("");
             for (const [fg, bg, min] of [
                 ["text-primary", "canvas", 4.5],
                 ["text-secondary", "surface-raised", 4.5],
@@ -363,9 +324,7 @@ try {
             });
             await mainButton.focus();
             assert.equal(
-                await mainButton.evaluate(
-                    (el) => getComputedStyle(el).outlineStyle,
-                ),
+                await mainButton.evaluate((el) => getComputedStyle(el).outlineStyle),
                 "solid",
             );
             await page.keyboard.press("Enter");
@@ -373,23 +332,17 @@ try {
             await page
                 .getByLabel("Тема", { exact: true })
                 .selectOption(theme === "light" ? "dark" : "light");
-            assert.equal(
-                await page.getByLabel("Поиск в каталоге").inputValue(),
-                "дроби",
-            );
+            assert.equal(await page.getByLabel("Поиск в каталоге").inputValue(), "дроби");
             assert.equal(
                 await mainButton.evaluate((el) => getComputedStyle(el).color),
                 "rgb(255, 255, 255)",
             );
-            await page
-                .getByLabel("Тема", { exact: true })
-                .selectOption("system");
+            await page.getByLabel("Тема", { exact: true }).selectOption("system");
             await page.emulateMedia({
                 colorScheme: theme === "light" ? "dark" : "light",
             });
             await page.waitForFunction(
-                (expected) =>
-                    document.documentElement.dataset.scheme === expected,
+                (expected) => document.documentElement.dataset.scheme === expected,
                 theme === "light" ? "dark" : "light",
             );
             await page.emulateMedia({ reducedMotion: "reduce" });
@@ -407,12 +360,7 @@ try {
         await run(`${theme}: empty/error/recovery/detail states`, async () => {
             const ctx = await context(theme);
             const page = await ctx.newPage();
-            for (const route of [
-                "/map",
-                "/submissions",
-                "/class",
-                "/teacher",
-            ]) {
+            for (const route of ["/map", "/submissions", "/class", "/teacher"]) {
                 await open(page, route, { scenario: "empty" });
                 assert(await page.locator(".state-title").count());
                 await fits(page, `empty ${route}`);
@@ -427,17 +375,13 @@ try {
                 });
                 assert(await retry.count());
                 await retry.last().click();
-                await page.waitForFunction(
-                    () => !document.querySelector('.state[role="alert"]'),
-                );
+                await page.waitForFunction(() => !document.querySelector('.state[role="alert"]'));
                 await fits(page, `recovery ${route}`);
             }
             await open(page, "/map", { scenario: "quiz-error" });
             assert.equal(await page.locator(".topic-card").count(), 4);
             await snap(page, `quiz-error-${theme}`);
-            await page
-                .getByRole("button", { name: "Повторить загрузку" })
-                .click();
+            await page.getByRole("button", { name: "Повторить загрузку" }).click();
             await page.getByRole("button", { name: "Начать тест" }).waitFor();
             await open(page, "/map", { scenario: "no-test" });
             assert.equal(await page.locator(".cta-card").count(), 0);
@@ -453,95 +397,60 @@ try {
                 failed: "Не удалось разобрать фото",
             })) {
                 await open(page, "/submissions/41", { scenario });
-                await page
-                    .getByRole("heading", { name: label, exact: true })
-                    .waitFor();
+                await page.getByRole("heading", { name: label, exact: true }).waitFor();
                 if (scenario !== "correct")
                     assert.equal(
-                        await page
-                            .getByText("В проверенных шагах ошибок не найдено.")
-                            .count(),
+                        await page.getByText("В проверенных шагах ошибок не найдено.").count(),
                         0,
                     );
                 await fits(page, scenario);
             }
             await open(page, "/submissions/41", { scenario: "photo-error" });
-            await page
-                .getByRole("button", { name: "Загрузить фото" })
-                .waitFor();
+            await page.getByRole("button", { name: "Загрузить фото" }).waitFor();
             assert.equal(await page.locator(".line").count(), 4);
             await snap(page, `photo-error-${theme}`);
             await page.getByRole("button", { name: "Загрузить фото" }).click();
-            await page
-                .getByRole("button", { name: "Загрузить фото" })
-                .waitFor();
+            await page.getByRole("button", { name: "Загрузить фото" }).waitFor();
             await open(page, "/submissions/41", { scenario: "processing" });
             await ctx.setOffline(true);
+            await page.getByRole("button", { name: "Обновить состояние" }).click();
             await page
-                .getByRole("button", { name: "Обновить состояние" })
-                .click();
-            await page
-                .getByText(
-                    "Не удалось обновить разбор. Предыдущий результат остаётся на экране.",
-                )
+                .getByText("Не удалось обновить разбор. Предыдущий результат остаётся на экране.")
                 .waitFor();
             assert.equal(await page.locator(".line").count(), 4);
             await ctx.setOffline(false);
-            await page
-                .getByRole("button", { name: "Повторить загрузку" })
-                .click();
-            await page
-                .getByRole("button", { name: "Обновить состояние" })
-                .waitFor();
+            await page.getByRole("button", { name: "Повторить загрузку" }).click();
+            await page.getByRole("button", { name: "Обновить состояние" }).waitFor();
             for (const route of ["/class", "/teacher"]) {
                 await open(page, route, { scenario: "no-class" });
                 await page
                     .getByRole("heading", {
-                        name:
-                            route === "/class"
-                                ? "Класс пока не подключён"
-                                : "Класс не подключён",
+                        name: route === "/class" ? "Класс пока не подключён" : "Класс не подключён",
                     })
                     .waitFor();
             }
             await open(page, "/class");
             await page.getByRole("searchbox").fill("несуществующая тема");
-            await page
-                .getByRole("heading", { name: "Совпадений нет" })
-                .waitFor();
-            // Clearing must reset both the visible value and the result query.
+            await page.getByRole("heading", { name: "Совпадений нет" }).waitFor();
+
             await page.locator(".search-clear").click();
-            await page
-                .getByRole("heading", { name: "Конспект: теорема Виета" })
-                .waitFor();
+            await page.getByRole("heading", { name: "Конспект: теорема Виета" }).waitFor();
             for (const route of ["/class", "/submissions"]) {
                 await open(page, route, { scenario: "pagination-error" });
                 const firstCount = await page
-                    .locator(
-                        route === "/class" ? ".material" : ".history-title",
-                    )
+                    .locator(route === "/class" ? ".material" : ".history-title")
                     .count();
                 assert.equal(firstCount, 2);
-                await page
-                    .getByRole("button", { name: "Показать ещё" })
-                    .click();
+                await page.getByRole("button", { name: "Показать ещё" }).click();
                 await page.getByRole("alert").waitFor();
                 assert.equal(
-                    await page
-                        .locator(
-                            route === "/class" ? ".material" : ".history-title",
-                        )
-                        .count(),
+                    await page.locator(route === "/class" ? ".material" : ".history-title").count(),
                     2,
                 );
-                if (route === "/class")
-                    await snap(page, `pagination-error-${theme}`);
-                await page
-                    .getByRole("button", { name: "Повторить загрузку" })
-                    .click();
+                if (route === "/class") await snap(page, `pagination-error-${theme}`);
+                await page.getByRole("button", { name: "Повторить загрузку" }).click();
                 await page.waitForFunction(
-                    (selector) =>
-                        document.querySelectorAll(selector).length > 2,
+                    (selector) => document.querySelectorAll(selector).length > 2,
                     route === "/class" ? ".material" : ".history-title",
                 );
             }
@@ -554,98 +463,61 @@ try {
                 await page.getByRole("heading", { name: label }).waitFor();
             }
             await open(page, "/quiz/7", { scenario: "not-found" });
-            await page
-                .getByRole("heading", { name: "Тест недоступен" })
-                .waitFor();
+            await page.getByRole("heading", { name: "Тест недоступен" }).waitFor();
             await open(page, "/class", { scenario: "loading" });
             await page.locator('[aria-busy="true"]').first().waitFor();
             await snap(page, `loading-${theme}`);
             await ctx.close();
         });
-        await run(
-            `${theme}: quiz answers, recovery, exit, reload, completion`,
-            async () => {
-                const ctx = await context(theme);
-                const page = await ctx.newPage();
-                await open(page, "/quiz/7");
-                await page.locator(".choice").nth(0).dblclick();
+        await run(`${theme}: quiz answers, recovery, exit, reload, completion`, async () => {
+            const ctx = await context(theme);
+            const page = await ctx.newPage();
+            await open(page, "/quiz/7");
+            await page.locator(".choice").nth(0).dblclick();
+            await page.getByText("Ответ не совпал", { exact: true }).waitFor();
+            await page.getByText("Верный ответ: 1", { exact: true }).waitFor();
+            await snap(page, `answer-wrong-${theme}`);
+            assert.equal(await page.locator('.choice[aria-pressed="true"]').count(), 1);
+            await page.getByRole("button", { name: "Следующий вопрос" }).click();
+            await page.getByRole("button", { name: "Назад", exact: true }).click();
+            await page.getByRole("button", { name: "Продолжить тест" }).waitFor();
+            await page.getByRole("button", { name: "Продолжить тест" }).click();
+            await page.getByText("Вопрос 2 из 5", { exact: true }).waitFor();
+            await page.reload();
+            await page.getByText("Вопрос 2 из 5", { exact: true }).waitFor();
+            for (const index of [2, 1, 2, 1]) {
+                await page.locator(".choice").nth(index).click();
+                await page.getByText("Верно", { exact: true }).waitFor();
                 await page
-                    .getByText("Ответ не совпал", { exact: true })
-                    .waitFor();
-                await page
-                    .getByText("Верный ответ: 1", { exact: true })
-                    .waitFor();
-                await snap(page, `answer-wrong-${theme}`);
-                assert.equal(
-                    await page.locator('.choice[aria-pressed="true"]').count(),
-                    1,
-                );
-                await page
-                    .getByRole("button", { name: "Следующий вопрос" })
+                    .getByRole("button", {
+                        name: /Следующий вопрос|Посмотреть результат/,
+                    })
                     .click();
-                await page
-                    .getByRole("button", { name: "Назад", exact: true })
-                    .click();
-                await page
-                    .getByRole("button", { name: "Продолжить тест" })
-                    .waitFor();
-                await page
-                    .getByRole("button", { name: "Продолжить тест" })
-                    .click();
-                await page
-                    .getByText("Вопрос 2 из 5", { exact: true })
-                    .waitFor();
-                await page.reload();
-                await page
-                    .getByText("Вопрос 2 из 5", { exact: true })
-                    .waitFor();
-                for (const index of [2, 1, 2, 1]) {
-                    await page.locator(".choice").nth(index).click();
-                    await page.getByText("Верно", { exact: true }).waitFor();
-                    await page
-                        .getByRole("button", {
-                            name: /Следующий вопрос|Посмотреть результат/,
-                        })
-                        .click();
-                }
-                await page
-                    .getByRole("heading", { name: "Тест завершён" })
-                    .waitFor();
-                await page.getByText("4 из 5", { exact: true }).waitFor();
-                await snap(page, `completed-${theme}`);
-                await page.reload();
-                await page.getByText("4 из 5", { exact: true }).waitFor();
-                for (const scenario of ["answer-error", "answer-saved"]) {
-                    await open(page, "/quiz/7", { scenario });
-                    await page.locator(".choice").nth(1).click();
-                    await page
-                        .getByRole("button", { name: "Проверить и повторить" })
-                        .waitFor();
-                    assert.equal(
-                        await page.getByText("Верно", { exact: true }).count(),
-                        0,
-                    );
-                    await snap(page, `${scenario}-${theme}`);
-                    await page
-                        .getByRole("button", { name: "Проверить и повторить" })
-                        .click();
-                    await page.getByText("Верно", { exact: true }).waitFor();
-                    if (scenario === "answer-saved")
-                        await page
-                            .getByText("Показан ранее сохранённый ответ.")
-                            .waitFor();
-                }
-                await open(page, "/quiz/7", { scenario: "expired" });
-                await page
-                    .getByRole("heading", { name: "Срок теста истёк" })
-                    .waitFor();
-                assert.equal(await page.locator(".choice").count(), 0);
-                await ctx.setOffline(true);
-                await page.getByText(/Нет интернета/).waitFor();
-                await ctx.setOffline(false);
-                await ctx.close();
-            },
-        );
+            }
+            await page.getByRole("heading", { name: "Тест завершён" }).waitFor();
+            await page.getByText("4 из 5", { exact: true }).waitFor();
+            await snap(page, `completed-${theme}`);
+            await page.reload();
+            await page.getByText("4 из 5", { exact: true }).waitFor();
+            for (const scenario of ["answer-error", "answer-saved"]) {
+                await open(page, "/quiz/7", { scenario });
+                await page.locator(".choice").nth(1).click();
+                await page.getByRole("button", { name: "Проверить и повторить" }).waitFor();
+                assert.equal(await page.getByText("Верно", { exact: true }).count(), 0);
+                await snap(page, `${scenario}-${theme}`);
+                await page.getByRole("button", { name: "Проверить и повторить" }).click();
+                await page.getByText("Верно", { exact: true }).waitFor();
+                if (scenario === "answer-saved")
+                    await page.getByText("Показан ранее сохранённый ответ.").waitFor();
+            }
+            await open(page, "/quiz/7", { scenario: "expired" });
+            await page.getByRole("heading", { name: "Срок теста истёк" }).waitFor();
+            assert.equal(await page.locator(".choice").count(), 0);
+            await ctx.setOffline(true);
+            await page.getByText(/Нет интернета/).waitFor();
+            await ctx.setOffline(false);
+            await ctx.close();
+        });
     }
     await run(
         "real HTTP client: ambiguous POST, saved answer, expiry, auth and deep links",
@@ -668,11 +540,7 @@ try {
             const quiz = () => ({
                 id: 7,
                 reason: "review",
-                status: expired
-                    ? "expired"
-                    : chosen === null
-                      ? "active"
-                      : "completed",
+                status: expired ? "expired" : chosen === null ? "active" : "completed",
                 created_at: new Date().toISOString(),
                 total: 1,
                 answered: chosen === null ? 0 : 1,
@@ -698,8 +566,7 @@ try {
             });
             await ctx.route("**/api/v1/**", async (route) => {
                 const path = new URL(route.request().url()).pathname;
-                if (path.endsWith("/me"))
-                    return route.fulfill({ json: profile });
+                if (path.endsWith("/me")) return route.fulfill({ json: profile });
                 if (path.endsWith("/answer")) {
                     posts++;
                     if (expireOnAnswer) {
@@ -712,8 +579,7 @@ try {
                     chosen = 1;
                     return route.abort("connectionreset");
                 }
-                if (path.endsWith("/quizzes/7"))
-                    return route.fulfill({ json: quiz() });
+                if (path.endsWith("/quizzes/7")) return route.fulfill({ json: quiz() });
                 return route.fulfill({
                     status: 404,
                     json: { detail: "not_found" },
@@ -721,33 +587,21 @@ try {
             });
             await page.goto(`${live}/?startapp=quiz_7`);
             await page.locator(".choice").nth(1).click();
-            await page
-                .getByRole("button", { name: "Проверить и повторить" })
-                .waitFor();
-            assert.equal(posts, 2); // Existing HTTP retry is idempotent server-side.
-            await page
-                .getByRole("button", { name: "Проверить и повторить" })
-                .click();
+            await page.getByRole("button", { name: "Проверить и повторить" }).waitFor();
+            assert.equal(posts, 2);
+            await page.getByRole("button", { name: "Проверить и повторить" }).click();
             await page.getByText("Показан ранее сохранённый ответ.").waitFor();
             assert.equal(posts, 2);
-            await page
-                .getByRole("button", { name: "Посмотреть результат" })
-                .click();
+            await page.getByRole("button", { name: "Посмотреть результат" }).click();
             await page.getByText("1 из 1", { exact: true }).waitFor();
             chosen = null;
             expired = false;
             expireOnAnswer = true;
             await page.reload();
             await page.locator(".choice").nth(1).click();
-            await page
-                .getByRole("button", { name: "Проверить и повторить" })
-                .click();
-            await page
-                .getByRole("heading", { name: "Срок теста истёк" })
-                .waitFor();
-            await page
-                .getByRole("button", { name: "Назад", exact: true })
-                .click();
+            await page.getByRole("button", { name: "Проверить и повторить" }).click();
+            await page.getByRole("heading", { name: "Срок теста истёк" }).waitFor();
+            await page.getByRole("button", { name: "Назад", exact: true }).click();
             assert(page.url().endsWith("#/map"));
             await ctx.unroute("**/api/v1/**");
             await ctx.route("**/api/v1/**", (route) =>
@@ -757,80 +611,53 @@ try {
                 }),
             );
             await page.goto(live);
-            await page
-                .getByRole("heading", { name: "Открой Ясно в MAX" })
-                .waitFor();
+            await page.getByRole("heading", { name: "Открой Ясно в MAX" }).waitFor();
             await ctx.close();
         },
     );
-    await run(
-        "native BackButton lifecycle with feature detection",
-        async () => {
-            const ctx = await context();
-            await ctx.addInitScript(() => {
-                const handlers = new Set();
-                window.__back = { handlers, shown: false };
-                window.WebApp = {
-                    initData: "synthetic",
-                    platform: "android",
-                    ready() {},
-                    getViewportSize: async () => ({
-                        width: "390",
-                        height: "844",
-                    }),
-                    BackButton: {
-                        show() {
-                            window.__back.shown = true;
-                        },
-                        hide() {
-                            window.__back.shown = false;
-                        },
-                        onClick(fn) {
-                            handlers.add(fn);
-                        },
-                        offClick(fn) {
-                            handlers.delete(fn);
-                        },
+    await run("native BackButton lifecycle with feature detection", async () => {
+        const ctx = await context();
+        await ctx.addInitScript(() => {
+            const handlers = new Set();
+            window.__back = { handlers, shown: false };
+            window.WebApp = {
+                initData: "synthetic",
+                platform: "android",
+                ready() {},
+                getViewportSize: async () => ({
+                    width: "390",
+                    height: "844",
+                }),
+                BackButton: {
+                    show() {
+                        window.__back.shown = true;
                     },
-                };
-            });
-            const page = await ctx.newPage();
-            await open(page, "/submissions/41");
-            assert.equal(
-                await page
-                    .getByRole("button", { name: "Назад", exact: true })
-                    .count(),
-                0,
-            );
-            assert.equal(
-                await page.evaluate(() => window.__back.handlers.size),
-                1,
-            );
-            await page.evaluate(() => [...window.__back.handlers][0]());
-            await page
-                .getByRole("heading", { name: "Разборы", exact: true })
-                .waitFor();
-            assert.equal(
-                await page.evaluate(() => window.__back.handlers.size),
-                0,
-            );
-            assert.equal(await page.evaluate(() => window.__back.shown), false);
-            await ctx.close();
-        },
-    );
+                    hide() {
+                        window.__back.shown = false;
+                    },
+                    onClick(fn) {
+                        handlers.add(fn);
+                    },
+                    offClick(fn) {
+                        handlers.delete(fn);
+                    },
+                },
+            };
+        });
+        const page = await ctx.newPage();
+        await open(page, "/submissions/41");
+        assert.equal(await page.getByRole("button", { name: "Назад", exact: true }).count(), 0);
+        assert.equal(await page.evaluate(() => window.__back.handlers.size), 1);
+        await page.evaluate(() => [...window.__back.handlers][0]());
+        await page.getByRole("heading", { name: "Разборы", exact: true }).waitFor();
+        assert.equal(await page.evaluate(() => window.__back.handlers.size), 0);
+        assert.equal(await page.evaluate(() => window.__back.shown), false);
+        await ctx.close();
+    });
 } finally {
     await browser.close();
     for (const server of servers) server.kill();
-    await writeFile(
-        new URL("browser-report.json", evidence),
-        JSON.stringify(report, null, 2),
-    );
+    await writeFile(new URL("browser-report.json", evidence), JSON.stringify(report, null, 2));
 }
-console.log(
-    JSON.stringify(
-        { passed: report.passed.length, errors: report.errors },
-        null,
-        2,
-    ),
-);
+console.log(JSON.stringify({ passed: report.passed.length, errors: report.errors }, null, 2));
 if (report.errors.length) process.exitCode = 1;

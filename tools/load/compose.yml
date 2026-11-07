@@ -1,0 +1,62 @@
+name: yasno-load-check
+
+x-app: &app
+  image: ${YASNO_LOAD_IMAGE:-yasno:strict-audit}
+  environment:
+    ENVIRONMENT: production
+    MAX_BOT_TOKEN: load-test-only-not-a-real-token
+    MAX_WEBHOOK_SECRET: load-test-only-secret
+    MAX_API_URL: http://127.0.0.1:9
+    DATABASE_URL: postgresql+asyncpg://yasno:yasno@postgres:5432/yasno_load
+    REDIS_URL: redis://redis:6379/0
+    AI_FAKE: "true"
+    LOG_LEVEL: WARNING
+  networks: [isolated]
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg17
+    environment:
+      POSTGRES_USER: yasno
+      POSTGRES_PASSWORD: yasno
+      POSTGRES_DB: yasno_load
+    ports: ["127.0.0.1:55433:5432"]
+    cpus: 1
+    mem_limit: 512m
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U yasno -d yasno_load"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks: [isolated]
+  redis:
+    image: redis:8-alpine
+    ports: ["127.0.0.1:56380:6379"]
+    cpus: 0.5
+    mem_limit: 128m
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks: [isolated]
+  migrate:
+    <<: *app
+    command: [migrate]
+    depends_on:
+      postgres:
+        condition: service_healthy
+  api:
+    <<: *app
+    command: [api, --host, 0.0.0.0, --port, "8000"]
+    ports: ["127.0.0.1:58001:8000"]
+    cpus: 2
+    mem_limit: 1g
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+networks:
+  isolated: {}

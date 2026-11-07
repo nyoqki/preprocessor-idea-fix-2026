@@ -1,0 +1,267 @@
+{
+  "checked_at_utc": "2026-11-07T10:29:43.787860+00:00",
+  "driver_sha256": "8621391979ef19ed1656d0d24887c744e78113ea9db3fb487f43b399de19b54a",
+  "compose_sha256": "96198f99ed1f27792447138bd925dd6914378e235f770793a1d1d01912c18d32",
+  "application_commit": "abf2ffddbc39e64948e6aa366cf2a4546dc16429",
+  "image_id": "sha256:20555e341bd091caff2584d6f0b4ee17a791e8c4ca211ee45b1b40248a8250f9",
+  "environment": {
+    "python": "3.13.15",
+    "host_cpus": 4,
+    "platform": "Linux",
+    "api_limits": {
+      "cpus": 2,
+      "memory_mib": 1024,
+      "processes": 1
+    },
+    "postgres_limits": {
+      "cpus": 1,
+      "memory_mib": 512
+    },
+    "redis_limits": {
+      "cpus": 0.5,
+      "memory_mib": 128
+    },
+    "target": "http://127.0.0.1:58001",
+    "real_database_and_redis": true,
+    "max_api_url": "http://127.0.0.1:9",
+    "real_max_and_ai_calls": 0
+  },
+  "model": "closed: fixed concurrent requests, no think time, no fixed arrival rate",
+  "client_connection_pool": {
+    "max_connections": 200,
+    "max_keepalive_connections": 200,
+    "keepalive_expiry_seconds": 2,
+    "automatic_retries": 0
+  },
+  "fixtures": {
+    "synthetic_users": 100,
+    "topics_per_user": 3,
+    "mistakes_per_topic": 2,
+    "quizzes": 100,
+    "items_per_quiz": 3,
+    "copies_of_each_answer": 5
+  },
+  "thresholds_declared_before_run": {
+    "all_stages_errors": 0,
+    "read_stages_at_concurrency_up_to_20_p95_ms": 1000,
+    "stress_stages_50_and_100": "exploratory latency; zero errors and intact invariants"
+  },
+  "limits": [
+    "Local loopback; no public HTTPS/MAX client/AI/image processing",
+    "Short sustained stages, not a soak or a demonstrated production capacity",
+    "Closed model throughput decreases if the service slows down"
+  ],
+  "read_stages": [
+    {
+      "concurrency": 5,
+      "requests": 3320,
+      "seconds": 20.025,
+      "requests_per_second": 165.79,
+      "errors": 0,
+      "transport_errors": 0,
+      "failure_types": {},
+      "status_counts": {
+        "200": 3320
+      },
+      "p50_ms": 28.32,
+      "p95_ms": 48.67,
+      "p99_ms": 64.78,
+      "max_ms": 124.97,
+      "by_operation": {
+        "/api/v1/gaps": {
+          "requests": 1098,
+          "errors": 0,
+          "p95_ms": 45.43
+        },
+        "/api/v1/me": {
+          "requests": 1174,
+          "errors": 0,
+          "p95_ms": 46.58
+        },
+        "/api/v1/quizzes/active": {
+          "requests": 1048,
+          "errors": 0,
+          "p95_ms": 53.31
+        }
+      }
+    },
+    {
+      "concurrency": 20,
+      "requests": 1989,
+      "seconds": 20.217,
+      "requests_per_second": 98.38,
+      "errors": 0,
+      "transport_errors": 0,
+      "failure_types": {},
+      "status_counts": {
+        "200": 1989
+      },
+      "p50_ms": 179.77,
+      "p95_ms": 454.7,
+      "p99_ms": 724.16,
+      "max_ms": 1201.35,
+      "by_operation": {
+        "/api/v1/gaps": {
+          "requests": 754,
+          "errors": 0,
+          "p95_ms": 464.42
+        },
+        "/api/v1/me": {
+          "requests": 670,
+          "errors": 0,
+          "p95_ms": 398.11
+        },
+        "/api/v1/quizzes/active": {
+          "requests": 565,
+          "errors": 0,
+          "p95_ms": 505.96
+        }
+      }
+    },
+    {
+      "concurrency": 50,
+      "requests": 1374,
+      "seconds": 20.416,
+      "requests_per_second": 67.3,
+      "errors": 0,
+      "transport_errors": 0,
+      "failure_types": {},
+      "status_counts": {
+        "200": 1374
+      },
+      "p50_ms": 545.53,
+      "p95_ms": 2022.3,
+      "p99_ms": 3065.78,
+      "max_ms": 4565.24,
+      "by_operation": {
+        "/api/v1/gaps": {
+          "requests": 464,
+          "errors": 0,
+          "p95_ms": 2017.3
+        },
+        "/api/v1/me": {
+          "requests": 472,
+          "errors": 0,
+          "p95_ms": 2088.12
+        },
+        "/api/v1/quizzes/active": {
+          "requests": 438,
+          "errors": 0,
+          "p95_ms": 1975.98
+        }
+      }
+    },
+    {
+      "concurrency": 100,
+      "requests": 1351,
+      "seconds": 21.646,
+      "requests_per_second": 62.41,
+      "errors": 0,
+      "transport_errors": 0,
+      "failure_types": {},
+      "status_counts": {
+        "200": 1351
+      },
+      "p50_ms": 1281.8,
+      "p95_ms": 3988.32,
+      "p99_ms": 5924.2,
+      "max_ms": 8376.11,
+      "by_operation": {
+        "/api/v1/gaps": {
+          "requests": 463,
+          "errors": 0,
+          "p95_ms": 4048.72
+        },
+        "/api/v1/me": {
+          "requests": 456,
+          "errors": 0,
+          "p95_ms": 4016.49
+        },
+        "/api/v1/quizzes/active": {
+          "requests": 432,
+          "errors": 0,
+          "p95_ms": 3815.57
+        }
+      }
+    }
+  ],
+  "answers": {
+    "concurrency": 50,
+    "requests": 1500,
+    "seconds": 42.343,
+    "requests_per_second": 35.42,
+    "errors": 0,
+    "transport_errors": 0,
+    "failure_types": {},
+    "status_counts": {
+      "200": 1500
+    },
+    "p50_ms": 1053.54,
+    "p95_ms": 3258.37,
+    "p99_ms": 4873.78,
+    "max_ms": 8799.98,
+    "by_operation": {
+      "answer/replay": {
+        "requests": 1500,
+        "errors": 0,
+        "p95_ms": 3258.37
+      }
+    },
+    "invariants": {
+      "completed_quizzes": 100,
+      "expected_completed_quizzes": 100,
+      "correct_total": 300,
+      "expected_correct_total": 300,
+      "every_user_has_exactly_three_successes": true,
+      "mistake_records_unchanged": true
+    }
+  },
+  "webhooks": {
+    "concurrency": 100,
+    "requests": 1000,
+    "seconds": 10.551,
+    "requests_per_second": 94.77,
+    "errors": 0,
+    "transport_errors": 0,
+    "failure_types": {},
+    "status_counts": {
+      "200": 1000
+    },
+    "p50_ms": 729.06,
+    "p95_ms": 2629.6,
+    "p99_ms": 4347.12,
+    "max_ms": 5458.71,
+    "by_operation": {
+      "webhook/replay": {
+        "requests": 1000,
+        "errors": 0,
+        "p95_ms": 2629.6
+      }
+    },
+    "invariants": {
+      "unique_updates": 100,
+      "added_jobs": 100,
+      "exact_job_ids_match": true,
+      "worker_running": false
+    }
+  },
+  "redis_outage": {
+    "readiness_during_outage": 503,
+    "webhook_during_outage": 503,
+    "expected_statuses_received": true,
+    "recovered_without_api_restart": true,
+    "recovery_seconds": 1.225,
+    "webhook_after_recovery": 200,
+    "passed": true
+  },
+  "readyz_after": {
+    "database": "ok",
+    "redis": "ok"
+  },
+  "api_after": {
+    "running": true,
+    "oom_killed": false,
+    "restart_count": 0
+  },
+  "passed": true
+}

@@ -1,0 +1,156 @@
+{
+  "checked_at_utc": "2026-11-07T10:27:33.197694+00:00",
+  "driver_sha256": "4dcc3d2f1ca30a23fe56962b24ef90120a8b2e251586014413cd6cf2d0582075",
+  "compose_sha256": "96198f99ed1f27792447138bd925dd6914378e235f770793a1d1d01912c18d32",
+  "application_commit": "abf2ffddbc39e64948e6aa366cf2a4546dc16429",
+  "image_id": "sha256:20555e341bd091caff2584d6f0b4ee17a791e8c4ca211ee45b1b40248a8250f9",
+  "environment": {
+    "python": "3.13.15",
+    "host_cpus": 4,
+    "platform": "Linux",
+    "api_limits": {
+      "cpus": 2,
+      "memory_mib": 1024,
+      "processes": 1
+    },
+    "postgres_limits": {
+      "cpus": 1,
+      "memory_mib": 512
+    },
+    "redis_limits": {
+      "cpus": 0.5,
+      "memory_mib": 128
+    },
+    "target": "http://127.0.0.1:58001",
+    "real_database_and_redis": true,
+    "max_api_url": "http://127.0.0.1:9",
+    "real_max_and_ai_calls": 0
+  },
+  "model": "closed: fixed concurrent requests, no think time, no fixed arrival rate",
+  "fixtures": {
+    "synthetic_users": 100,
+    "topics_per_user": 3,
+    "mistakes_per_topic": 2,
+    "quizzes": 100,
+    "items_per_quiz": 3,
+    "copies_of_each_answer": 5
+  },
+  "thresholds_declared_before_run": {
+    "all_stages_errors": 0,
+    "read_stages_at_concurrency_up_to_20_p95_ms": 1000,
+    "stress_stages_50_and_100": "exploratory latency; zero errors and intact invariants"
+  },
+  "limits": [
+    "Local loopback; no public HTTPS/MAX client/AI/image processing",
+    "Short sustained stages, not a soak or a demonstrated production capacity",
+    "Closed model throughput decreases if the service slows down"
+  ],
+  "read_stages": [
+    {
+      "concurrency": 20,
+      "requests": 130,
+      "seconds": 1.066,
+      "requests_per_second": 121.97,
+      "errors": 0,
+      "transport_errors": 0,
+      "failure_types": {},
+      "status_counts": {
+        "200": 130
+      },
+      "p50_ms": 124.1,
+      "p95_ms": 342.11,
+      "p99_ms": 419.26,
+      "max_ms": 470.19,
+      "by_operation": {
+        "/api/v1/gaps": {
+          "requests": 44,
+          "errors": 0,
+          "p95_ms": 282.44
+        },
+        "/api/v1/me": {
+          "requests": 54,
+          "errors": 0,
+          "p95_ms": 339.12
+        },
+        "/api/v1/quizzes/active": {
+          "requests": 32,
+          "errors": 0,
+          "p95_ms": 407.01
+        }
+      }
+    }
+  ],
+  "answers": {
+    "concurrency": 50,
+    "requests": 1500,
+    "seconds": 28.13,
+    "requests_per_second": 53.32,
+    "errors": 1,
+    "transport_errors": 1,
+    "failure_types": {
+      "RemoteProtocolError: Server disconnected without sending a response.": 1
+    },
+    "status_counts": {
+      "0": 1,
+      "200": 1499
+    },
+    "p50_ms": 710.63,
+    "p95_ms": 2330.05,
+    "p99_ms": 3477.48,
+    "max_ms": 6036.66,
+    "by_operation": {
+      "answer/replay": {
+        "requests": 1500,
+        "errors": 1,
+        "p95_ms": 2330.05
+      }
+    },
+    "invariants": {
+      "completed_quizzes": 100,
+      "expected_completed_quizzes": 100,
+      "correct_total": 300,
+      "expected_correct_total": 300,
+      "every_user_has_exactly_three_successes": true,
+      "mistake_records_unchanged": true
+    }
+  },
+  "webhooks": {
+    "concurrency": 100,
+    "requests": 1000,
+    "seconds": 12.339,
+    "requests_per_second": 81.04,
+    "errors": 0,
+    "transport_errors": 0,
+    "failure_types": {},
+    "status_counts": {
+      "200": 1000
+    },
+    "p50_ms": 795.84,
+    "p95_ms": 3655.68,
+    "p99_ms": 5530.56,
+    "max_ms": 8684.53,
+    "by_operation": {
+      "webhook/replay": {
+        "requests": 1000,
+        "errors": 0,
+        "p95_ms": 3655.68
+      }
+    },
+    "invariants": {
+      "unique_updates": 100,
+      "added_jobs": 100,
+      "exact_job_ids_match": true,
+      "worker_running": false
+    }
+  },
+  "readyz_after": {
+    "database": "ok",
+    "redis": "ok"
+  },
+  "api_after": {
+    "running": true,
+    "oom_killed": false,
+    "restart_count": 0
+  },
+  "passed": false
+}

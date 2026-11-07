@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from yasno.ai.tutor import Hint, Tutor
 from yasno.ai.types import ProviderError, TranscribedLine, Transcription
 from yasno.clock import utcnow
-from yasno.db.models import Submission, SubmissionKind, SubmissionStatus
+from yasno.db.models import ConsentStatus, Submission, SubmissionKind, SubmissionStatus, User
 from yasno.math.display import to_display
 from yasno.math.errors import ErrorType
 from yasno.math.leak import reveals_answer
@@ -32,8 +32,6 @@ VERIFY_TIMEOUT_SECONDS = 15.0
 DUPLICATE_WINDOW = timedelta(hours=12)
 
 FALLBACK_TOPICS: dict[ProblemKind, str] = {
-    ProblemKind.EQUATION: "alg.linear_eq",
-    ProblemKind.INEQUALITY: "alg.linear_ineq",
     ProblemKind.SYSTEM: "alg.systems",
     ProblemKind.EXPRESSION: "alg.expressions",
     ProblemKind.DERIVATIVE: "calc.derivative",
@@ -41,6 +39,7 @@ FALLBACK_TOPICS: dict[ProblemKind, str] = {
 
 
 class Verdict(StrEnum):
+    CANCELLED = "cancelled"
     CORRECT = "correct"
     ERROR = "error"
     INCOMPLETE = "incomplete"
@@ -126,6 +125,9 @@ async def start_submission(
         return None, content_type
     digest = hashlib.sha256(image).hexdigest()
     async with deps.sessions.begin() as session:
+        owner = await session.get(User, user_id, with_for_update=True)
+        if owner is None or owner.consent_status is not ConsentStatus.GRANTED:
+            return None, content_type
         duplicate = await _duplicate(session, user_id, digest)
         if duplicate is not None:
             return duplicate, content_type
@@ -155,8 +157,8 @@ async def _save(
     error: str | None = None,
 ) -> None:
     async with deps.sessions.begin() as session:
-        submission = await session.get(Submission, submission_id)
-        if submission is None:
+        submission = await session.get(Submission, submission_id, with_for_update=True)
+        if submission is None or submission.status is SubmissionStatus.DONE:
             return
         submission.status = status
         if transcription is not None:
@@ -168,6 +170,10 @@ async def _save(
         submission.error = error
         if status in (SubmissionStatus.DONE, SubmissionStatus.FAILED):
             submission.finished_at = utcnow()
+
+
+async def fail_submission(deps: AnalysisDeps, submission_id: int) -> None:
+    await _save(deps, submission_id, SubmissionStatus.FAILED, error="analysis_unavailable")
 
 
 async def transcribe(
@@ -214,6 +220,8 @@ async def correct_line(
     transcription = await load_transcription(deps, submission_id)
     if transcription is None:
         return None
+    if not any(line.index == index for line in transcription.lines):
+        return None
     for line in transcription.lines:
         if line.index == index:
             line.latex = latex
@@ -225,6 +233,12 @@ async def correct_line(
 
 
 async def evaluate(deps: AnalysisDeps, *, submission_id: int, user_id: int, grade: int) -> Analysis:
+    async with deps.sessions() as session:
+        submission = await session.get(Submission, submission_id)
+        if submission is None or submission.user_id != user_id:
+            return Analysis(Verdict.CANCELLED, submission_id)
+        if submission.status is SubmissionStatus.DONE:
+            return Analysis(Verdict.CANCELLED, submission_id)
     transcription = await load_transcription(deps, submission_id)
     if transcription is None:
         return Analysis(Verdict.UNREADABLE, submission_id)
@@ -244,9 +258,6 @@ async def evaluate(deps: AnalysisDeps, *, submission_id: int, user_id: int, grad
 
     if verification.status is Status.CORRECT:
         result.verdict = Verdict.CORRECT
-        if topic is not None:
-            async with deps.sessions.begin() as session:
-                await progress.record_success(session, user_id=user_id, topic_code=topic, now=now)
     elif verification.status is Status.INCOMPLETE:
         result.verdict = Verdict.INCOMPLETE
     elif verification.status is Status.UNPARSEABLE and verification.unparseable_step is not None:
@@ -279,36 +290,50 @@ async def evaluate(deps: AnalysisDeps, *, submission_id: int, user_id: int, grad
             forbidden=[v for v in (verification.final_answer, verification.solution) if v],
             leak_check=lambda text: reveals_answer(text, verification, context=context),
         )
-        if topic is not None:
-            async with deps.sessions.begin() as session:
-                await progress.record_mistake(
-                    session,
-                    user_id=user_id,
-                    topic_code=topic,
-                    error_type=error_type,
-                    now=now,
-                    submission_id=submission_id,
-                    step_index=error_line.index,
-                    detail={"line": error_line.latex},
-                )
 
     if result.verdict is Verdict.REVIEW:
         result.hint = await deps.tutor.soft_review(transcription.task, lines, grade)
 
-    await _save(
-        deps,
-        submission_id,
-        SubmissionStatus.DONE,
-        topic_code=topic,
-        analysis={
+    async with deps.sessions.begin() as session:
+        # Lock the owner before the work, in the same order as erasure and quiz updates.
+        owner = await session.get(User, user_id, with_for_update=True)
+        submission = await session.get(Submission, submission_id, with_for_update=True)
+        if (
+            owner is None
+            or owner.consent_status is not ConsentStatus.GRANTED
+            or submission is None
+            or submission.user_id != user_id
+            or submission.status is SubmissionStatus.DONE
+            or submission.transcription != transcription.model_dump(mode="json")
+        ):
+            return Analysis(Verdict.CANCELLED, submission_id)
+        if topic is not None and result.verdict is Verdict.CORRECT:
+            await progress.record_success(session, user_id=user_id, topic_code=topic, now=now)
+        elif topic is not None and result.verdict is Verdict.ERROR:
+            assert result.error_line is not None
+            assert result.error_type is not None
+            await progress.record_mistake(
+                session,
+                user_id=user_id,
+                topic_code=topic,
+                error_type=result.error_type,
+                now=now,
+                submission_id=submission_id,
+                step_index=result.error_line.index,
+                detail={"line": result.error_line.latex},
+            )
+        submission.status = SubmissionStatus.DONE
+        submission.topic_code = topic
+        submission.error = None
+        submission.finished_at = utcnow()
+        submission.analysis = {
             "status": result.verdict.value,
             "verification": verification.status.value,
             "problem_kind": verification.problem_kind.value,
             "first_error_step": result.error_line.index if result.error_line else None,
             "error_type": result.error_type.value if result.error_type else None,
             "hint": result.hint.message if result.hint else None,
-        },
-    )
+        }
     log.info(
         "submission_evaluated",
         submission_id=submission_id,

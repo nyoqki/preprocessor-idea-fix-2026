@@ -21,9 +21,13 @@ class MaterialResult:
 
 async def recognize_text(tutor: Tutor, image: bytes, content_type: str) -> str:
     if tutor.ocr is not None:
-        result = await tutor.ocr.recognize(image, content_type)
-        if result.text.strip():
-            return result.text
+        try:
+            result = await tutor.ocr.recognize(image, content_type)
+        except ProviderError as exc:
+            log.warning("material_ocr_failed", error=str(exc))
+        else:
+            if result.text.strip():
+                return result.text
     transcription = await tutor.transcribe(image, content_type)
     parts = [transcription.task or ""]
     parts.extend(line.text or line.latex for line in transcription.lines)

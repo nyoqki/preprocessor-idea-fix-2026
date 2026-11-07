@@ -344,7 +344,7 @@ class Tutor:
             log.warning("ai_topic_failed", error=str(exc))
             return TopicGuess()
         code = (reply.code or "").strip()
-        if code not in TOPICS_BY_CODE:
+        if code not in TOPICS_BY_CODE or reply.confidence < 0.6:
             return TopicGuess()
         return TopicGuess(code=code, confidence=reply.confidence)
 
@@ -383,6 +383,8 @@ class Tutor:
         materials: Sequence[str],
         grade: int,
         history: Sequence[ChatMessage] = (),
+        *,
+        leak_check: LeakCheck | None = None,
     ) -> str:
         system = prompts.ANSWER_SYSTEM.format(persona=prompts.TUTOR_PERSONA.format(grade=grade))
         messages = [ChatMessage(role=Role.SYSTEM, content=system)]
@@ -390,7 +392,7 @@ class Tutor:
         if context:
             messages.append(
                 ChatMessage(
-                    role=Role.SYSTEM, content=prompts.ANSWER_MATERIALS.format(materials=context)
+                    role=Role.USER, content=prompts.ANSWER_MATERIALS.format(materials=context)
                 )
             )
         messages.extend(history)
@@ -400,7 +402,10 @@ class Tutor:
         except ProviderError as exc:
             log.warning("ai_answer_failed", error=str(exc))
             return prompts.ANSWER_UNAVAILABLE
-        return humanize_math(answer) or prompts.ANSWER_UNAVAILABLE
+        answer = humanize_math(answer)
+        if leak_check is not None and leak_check(answer):
+            return "Давай разберём этот шаг без готового ответа. Какое правило ты здесь применяешь?"
+        return answer or prompts.ANSWER_UNAVAILABLE
 
     def _materials(self, materials: Sequence[str]) -> str:
         budget = self._max_material_chars

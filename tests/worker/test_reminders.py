@@ -3,10 +3,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.bot.harness import Harness, make_harness
-from yasno.db.models import ConsentStatus, Exam, ExamSource, Role, SchoolClass, User
+from yasno.db.models import ConsentStatus, Exam, ExamSource, Notification, Role, SchoolClass, User
 from yasno.math.errors import ErrorType
 from yasno.services.progress import record_mistake
 from yasno.worker import reminders
@@ -24,13 +25,14 @@ def harness(
     monkeypatch.setattr(reminders, "local_now", lambda tz: NOW)
     monkeypatch.setattr(reminders, "utcnow", lambda: NOW)
     harness = make_harness(db_sessions, tmp_path)
+    harness.max.admins.add(2000)
     yield harness
     harness.ctx.verifier.close()
 
 
 async def seed_class(sessions: Sessions) -> tuple[int, list[User]]:
     async with sessions.begin() as session:
-        school_class = SchoolClass(title="9Б", grade=9, invite_code="abc")
+        school_class = SchoolClass(title="9Б", grade=9, invite_code="abc", max_chat_id=-900)
         session.add(school_class)
         await session.flush()
         users = [
@@ -124,3 +126,37 @@ async def test_teacher_digest_is_anonymous_and_thresholded(
     assert "Квадратные уравнения — 2 из 4" in (message.text or "")
     assert "Степени" not in (message.text or "")
     assert all(u.first_name not in (message.text or "") for u in users[:3])
+
+
+async def test_failed_delivery_can_be_retried(
+    harness: Harness, db_sessions: Sessions, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from yasno.max.client import MaxApiError
+
+    _, users = await seed_class(db_sessions)
+    original = harness.max.send_message
+
+    async def fail_once(**kwargs: object) -> None:
+        raise MaxApiError(503, "unavailable", "Temporary failure")
+
+    monkeypatch.setattr(harness.max, "send_message", fail_once)
+    assert not await reminders._notify(harness.ctx, users[0], "review", "retry", "Повторим?", [])
+    monkeypatch.setattr(harness.max, "send_message", original)
+    assert await reminders._notify(harness.ctx, users[0], "review", "retry", "Повторим?", [])
+    assert not await reminders._notify(harness.ctx, users[0], "review", "retry", "Повторим?", [])
+    assert len(harness.max.sent) == 1
+
+
+async def test_stale_recipient_cannot_recreate_notification_after_consent_revoked(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    _, users = await seed_class(db_sessions)
+    student = users[0]
+    async with db_sessions.begin() as session:
+        fresh = await session.get(User, student.id)
+        assert fresh is not None
+        fresh.consent_status = ConsentStatus.REVOKED
+    assert not await reminders._notify(harness.ctx, student, "review", "stale", "Повторим?", [])
+    assert harness.max.sent == []
+    async with db_sessions() as session:
+        assert await session.scalar(select(Notification)) is None

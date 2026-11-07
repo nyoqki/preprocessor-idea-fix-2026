@@ -17,6 +17,12 @@ async def ensure_user(ctx: BotContext, actor: max_types.User) -> User:
 async def reply(
     ctx: BotContext, user_id: int, text: str, rows: Rows | None = None
 ) -> max_types.Message:
+    while len(text) > 4000:
+        split = text.rfind("\n", 0, 4000) + 1
+        if split < 2000:
+            split = 4000
+        await ctx.max.send_message(user_id=user_id, text=text[:split])
+        text = text[split:]
     attachments = [keyboard.inline_keyboard(rows)] if rows else None
     return await ctx.max.send_message(user_id=user_id, text=text, attachments=attachments)
 

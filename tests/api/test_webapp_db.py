@@ -10,8 +10,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.api.test_webapp_auth import build_init_data
+from tests.bot.harness import FakeMax
 from yasno.api import webapp
-from yasno.api.deps import get_session
+from yasno.api.deps import get_max_client, get_session
 from yasno.api.webapp.auth import current_user
 from yasno.config import Settings
 from yasno.db.models import (
@@ -55,7 +56,9 @@ async def add_user(
 
 async def add_class(sessions: Sessions, title: str = "9Б") -> SchoolClass:
     async with sessions() as session:
-        school_class = SchoolClass(title=title, grade=9, invite_code=f"inv-{title}")
+        school_class = SchoolClass(
+            title=title, grade=9, invite_code=f"inv-{title}", max_chat_id=-sum(map(ord, title))
+        )
         session.add(school_class)
         await session.commit()
         return school_class
@@ -66,6 +69,9 @@ def make_client(sessions: Sessions, user: User | None, tmp_storage: LocalStorage
     app.state.settings = Settings(max_bot_token=SecretStr("bot-token"))
     app.state.storage = tmp_storage
     app.include_router(webapp.router)
+    app.dependency_overrides[get_max_client] = lambda: FakeMax(
+        admins={user.max_user_id} if user else set()
+    )
 
     async def session_override() -> AsyncIterator[AsyncSession]:
         async with sessions() as session:
@@ -308,3 +314,88 @@ async def test_teacher_summary_is_anonymous(db_sessions: Sessions, storage: Loca
     async with db_sessions() as session:
         total = await session.scalar(select(func.count()).select_from(Mistake))
     assert total == 3
+
+
+async def test_platform_int64_identifiers_survive_roundtrip(
+    db_sessions: Sessions, storage: LocalStorage
+) -> None:
+    max_id = 2**40 + 17
+    client = make_client(db_sessions, None, storage)
+    raw = build_init_data(auth_date=datetime.now(UTC), user={"id": max_id, "first_name": "Аня"})
+    response = await client.get("/api/v1/me", headers={"Authorization": f"tma {raw}"})
+    assert response.status_code == 200
+    async with db_sessions.begin() as session:
+        user = await session.scalar(select(User).where(User.max_user_id == max_id))
+        assert user is not None
+        school_class = SchoolClass(title="9А", invite_code="int64", max_chat_id=-(2**45))
+        session.add(school_class)
+    async with db_sessions() as session:
+        loaded_class = await session.scalar(select(SchoolClass))
+        assert loaded_class is not None
+        assert loaded_class.max_chat_id == -(2**45)
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "9223372036854775808", "999999999999999999999999"])
+async def test_invalid_ids_and_cursors_return_422(
+    db_sessions: Sessions, storage: LocalStorage, value: str
+) -> None:
+    user = await add_user(db_sessions, 1)
+    async with make_client(db_sessions, user, storage) as client:
+        for path in (f"/submissions/{value}", f"/quizzes/{value}", f"/submissions?cursor={value}"):
+            assert (await client.get("/api/v1" + path)).status_code == 422
+
+
+async def test_teacher_with_revoked_admin_rights_cannot_read_summary(
+    db_sessions: Sessions, storage: LocalStorage
+) -> None:
+    school_class = await add_class(db_sessions)
+    teacher = await add_user(db_sessions, 1, role=Role.TEACHER, class_id=school_class.id)
+    app = FastAPI()
+    app.state.settings = Settings(max_bot_token=SecretStr("bot-token"))
+    app.include_router(webapp.router)
+    app.dependency_overrides[current_user] = lambda: teacher
+    app.dependency_overrides[get_max_client] = lambda: FakeMax(admins=set())
+
+    async def session_override() -> AsyncIterator[AsyncSession]:
+        async with db_sessions() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = session_override
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/api/v1/teacher/summary")
+    assert response.status_code == 403
+    assert response.json()["detail"] == "teacher_access_revoked"
+
+
+async def test_summary_suppresses_single_pupil_even_with_repeated_mistakes(
+    db_sessions: Sessions, storage: LocalStorage
+) -> None:
+    school_class = await add_class(db_sessions)
+    teacher = await add_user(db_sessions, 1, role=Role.TEACHER, class_id=school_class.id)
+    student = await add_user(db_sessions, 2, class_id=school_class.id)
+    async with db_sessions.begin() as session:
+        for _ in range(3):
+            await record_mistake(
+                session,
+                user_id=student.id,
+                topic_code="alg.linear_eq",
+                error_type=ErrorType.SIGN,
+                now=NOW,
+            )
+    async with make_client(db_sessions, teacher, storage) as client:
+        response = await client.get("/api/v1/teacher/summary")
+    assert response.status_code == 200
+    assert response.json()["topics"] == []
+    assert response.json()["students_with_gaps"] is None
+
+
+async def test_valid_int64_resource_ids_and_cursor_do_not_overflow(
+    db_sessions: Sessions, storage: LocalStorage
+) -> None:
+    user = await add_user(db_sessions, 1)
+    async with make_client(db_sessions, user, storage) as client:
+        assert (await client.get(f"/api/v1/submissions/{2**40}")).status_code == 404
+        assert (await client.get(f"/api/v1/quizzes/{2**40}")).status_code == 404
+        response = await client.get("/api/v1/submissions", params={"cursor": str(2**63 - 1)})
+        assert response.status_code == 200
+        assert response.json()["items"] == []

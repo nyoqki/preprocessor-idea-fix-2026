@@ -10,6 +10,8 @@ RUN --mount=type=cache,target=/root/.npm \
     --mount=type=bind,source=webapp/.npmrc,target=.npmrc \
     npm ci --no-audit --no-fund
 COPY webapp ./
+ARG VITE_BOT_USERNAME=ideya_fiks_159_bot
+ENV VITE_BOT_USERNAME=$VITE_BOT_USERNAME
 RUN npm run build
 
 FROM python:3.13-slim AS builder

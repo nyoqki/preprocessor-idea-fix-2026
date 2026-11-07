@@ -3,16 +3,34 @@ from yasno.bot import memory, texts
 from yasno.bot.common import callback_args, ensure_user, reply
 from yasno.bot.context import BotContext
 from yasno.bot.handlers.homework import handle_pending_text
+from yasno.bot.handlers.start import continue_onboarding
 from yasno.bot.routing import Router, all_of, callback_prefix, has_text, in_dialog
 from yasno.clock import local_today
 from yasno.db.models import ExamSource, User
 from yasno.max import keyboard
 from yasno.max.types import Update, UpdateType
-from yasno.services import exams, materials
+from yasno.services import consent, exams, materials
 
 router = Router()
 
 QUESTIONS_PER_DAY = 30
+
+
+async def _has_consent(ctx: BotContext, user: User) -> bool:
+    if consent.has_consent(user):
+        return True
+    await reply(ctx, user.max_user_id, texts.CONSENT_REQUIRED)
+    await continue_onboarding(ctx, user)
+    return False
+
+
+async def _allow_text(ctx: BotContext, user: User) -> bool:
+    if not await _has_consent(ctx, user):
+        return False
+    if not await _within_limit(ctx, user):
+        await reply(ctx, user.max_user_id, texts.QUESTION_LIMIT)
+        return False
+    return True
 
 
 def is_exam_text(update: Update) -> bool:
@@ -24,6 +42,8 @@ async def on_exam_text(update: Update, ctx: BotContext) -> None:
     assert update.message is not None
     assert update.actor is not None
     user = await ensure_user(ctx, update.actor)
+    if not await _allow_text(ctx, user):
+        return
     if await handle_pending_text(update, ctx, user):
         return
     today = local_today(ctx.settings.timezone)
@@ -36,6 +56,9 @@ async def on_exam_text(update: Update, ctx: BotContext) -> None:
         return
     subject = info.subject or "математика"
     async with ctx.sessions.begin() as session:
+        fresh = await session.get(User, user.id, with_for_update=True)
+        if fresh is None or not consent.has_consent(fresh):
+            return
         exam, _ = await exams.upsert_exam(
             session,
             title=info.title,
@@ -43,7 +66,6 @@ async def on_exam_text(update: Update, ctx: BotContext) -> None:
             scheduled_on=info.date,
             topic_codes=info.topic_codes,
             source=ExamSource.STUDENT,
-            class_id=user.class_id,
             user_id=user.id,
             raw_text=update.message.text[:2000],
             source_mid=update.message.body.mid,
@@ -83,9 +105,6 @@ async def _within_limit(ctx: BotContext, user: User) -> bool:
 
 async def _answer_question(update: Update, ctx: BotContext, user: User) -> None:
     assert update.message is not None
-    if not await _within_limit(ctx, user):
-        await reply(ctx, user.max_user_id, texts.QUESTION_LIMIT)
-        return
     await ctx.max.send_action(update.message.chat_id or user.max_user_id)
     context: list[str] = []
     if user.class_id is not None:
@@ -105,6 +124,8 @@ async def on_text(update: Update, ctx: BotContext) -> None:
     if update.actor.is_bot:
         return
     user = await ensure_user(ctx, update.actor)
+    if not await _allow_text(ctx, user):
+        return
     if await handle_pending_text(update, ctx, user):
         return
     await _answer_question(update, ctx, user)

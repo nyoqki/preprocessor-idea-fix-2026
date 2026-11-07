@@ -3,9 +3,10 @@ import asyncio
 import sys
 from collections.abc import Sequence
 
-from yasno.config import Settings, get_settings
+from yasno.config import Environment, Settings, get_settings
 from yasno.logs import configure_logging
 from yasno.max.client import MaxClient
+from yasno.max.tls import build_ssl_context
 from yasno.max.types import UpdateType
 
 WEBHOOK_UPDATE_TYPES = [
@@ -26,6 +27,7 @@ def _client(settings: Settings) -> MaxClient:
     return MaxClient(
         settings.max_bot_token.get_secret_value(),
         base_url=str(settings.max_api_url).rstrip("/"),
+        verify=build_ssl_context(settings.max_extra_ca_file),
     )
 
 
@@ -72,6 +74,11 @@ async def webhook_set(settings: Settings) -> None:
         raise SystemExit("PUBLIC_BASE_URL is required to register a webhook")
     url = str(settings.public_base_url).rstrip("/") + settings.webhook_path
     secret = settings.max_webhook_secret.get_secret_value() if settings.max_webhook_secret else None
+    if settings.environment is Environment.PRODUCTION:
+        if not secret:
+            raise SystemExit("MAX_WEBHOOK_SECRET is required in production")
+        if settings.public_base_url.scheme != "https":
+            raise SystemExit("PUBLIC_BASE_URL must use HTTPS in production")
     async with _client(settings) as client:
         await client.subscribe(url, secret=secret, update_types=WEBHOOK_UPDATE_TYPES)
     print(f"webhook registered: {url}")

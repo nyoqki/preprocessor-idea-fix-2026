@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from yasno.ai.types import ChatMessage, Role
 from yasno.bot.context import BotContext
 from yasno.db.models import User
+from yasno.services.consent import has_consent
 
 HISTORY_TTL_SECONDS = 30 * 60
 HISTORY_MESSAGES = 8
@@ -30,7 +31,10 @@ async def remember(ctx: BotContext, user: User, *messages: ChatMessage) -> None:
     payload = [
         {"role": item.role.value, "content": item.content[:MESSAGE_CHARS]} for item in history
     ]
-    await ctx.redis.set(_key(user), orjson.dumps(payload).decode(), ex=HISTORY_TTL_SECONDS)
+    async with ctx.sessions.begin() as session:
+        fresh = await session.get(User, user.id, with_for_update=True)
+        if fresh is not None and has_consent(fresh):
+            await ctx.redis.set(_key(user), orjson.dumps(payload).decode(), ex=HISTORY_TTL_SECONDS)
 
 
 async def remember_exchange(ctx: BotContext, user: User, question: str, answer: str) -> None:

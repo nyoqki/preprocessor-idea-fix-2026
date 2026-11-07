@@ -81,6 +81,7 @@ class MaxClient:
         )
         self._max_retries = max_retries
         self._limiter = RateLimiter(rate_per_second)
+        self._recipients: dict[tuple[str, int], RateLimiter] = {}
 
     async def __aenter__(self) -> Self:
         return self
@@ -125,7 +126,7 @@ class MaxClient:
                 )
             except httpx.TransportError as exc:
                 if attempt >= self._max_retries:
-                    raise
+                    raise MaxApiError(503, "transport.error", "MAX is unreachable") from exc
                 attempt += 1
                 delay = self._backoff(attempt)
                 log.warning("max_transport_error", path=path, error=str(exc), retry_in=delay)
@@ -200,6 +201,12 @@ class MaxClient:
         if (user_id is None) == (chat_id is None):
             raise ValueError("exactly one of user_id or chat_id is required")
         body = self._message_body(text, attachments, text_format, notify=notify)
+        recipient = ("user", user_id) if user_id is not None else ("chat", chat_id or 0)
+        if len(self._recipients) > 4096:
+            now = time.monotonic()
+            self._recipients = {k: v for k, v in self._recipients.items() if v._next > now}
+        limiter = self._recipients.setdefault(recipient, RateLimiter(2.0))
+        await limiter.acquire()
         data = await self._request(
             "POST",
             "/messages",
@@ -250,6 +257,11 @@ class MaxClient:
 
     async def get_my_membership(self, chat_id: int) -> ChatMember:
         return self._parse(ChatMember, await self._request("GET", f"/chats/{chat_id}/members/me"))
+
+    async def get_admins(self, chat_id: int) -> ChatMembers:
+        return self._parse(
+            ChatMembers, await self._request("GET", f"/chats/{chat_id}/members/admins")
+        )
 
     async def get_members(self, chat_id: int, *, marker: int | None = None) -> ChatMembers:
         data = await self._request(
@@ -313,18 +325,24 @@ class MaxClient:
         raise MaxApiError(response.status_code, "upload.no_token", "upload returned no token")
 
     async def download(self, url: str, *, max_bytes: int = 20 * 1024 * 1024) -> bytes:
-        async with self._files.stream("GET", url) as response:
-            if not response.is_success:
-                await response.aread()
-                raise self._error(response)
-            chunks: list[bytes] = []
-            total = 0
-            async for chunk in response.aiter_bytes():
-                total += len(chunk)
-                if total > max_bytes:
-                    raise MaxApiError(413, "download.too_large", f"file exceeds {max_bytes} bytes")
-                chunks.append(chunk)
-            return b"".join(chunks)
+        try:
+            async with asyncio.timeout(75):
+                async with self._files.stream("GET", url) as response:
+                    if not response.is_success:
+                        await response.aread()
+                        raise self._error(response)
+                    chunks: list[bytes] = []
+                    total = 0
+                    async for chunk in response.aiter_bytes():
+                        total += len(chunk)
+                        if total > max_bytes:
+                            raise MaxApiError(
+                                413, "download.too_large", f"file exceeds {max_bytes} bytes"
+                            )
+                        chunks.append(chunk)
+                    return b"".join(chunks)
+        except (httpx.HTTPError, TimeoutError) as exc:
+            raise MaxApiError(503, "download.unavailable", "image download failed") from exc
 
     @staticmethod
     def _message_body(

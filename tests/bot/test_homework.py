@@ -173,3 +173,86 @@ async def test_photo_without_math_gets_its_own_reply(
     vision.result = Transcription(is_math=False)
     await harness.feed(photo_message())
     assert harness.max.texts_to(100)[-1].startswith("На фото не вижу решения")
+
+
+async def test_invalid_line_number_keeps_correction_pending(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    await consented_user(db_sessions)
+    use_transcription(harness, ("2x + 3 = 7", 0.99), ("2x = 4", 0.3), ("x = 2", 0.99))
+    await harness.feed(photo_message())
+    fix = harness.max.buttons()[1]["payload"]
+    await harness.feed(factories.callback(fix))
+    await harness.feed(factories.dialog_message("99: x = 2", mid="bad"))
+    assert "Такой строки" in harness.max.texts_to(100)[-1]
+    await harness.feed(factories.dialog_message("2: 2x = 4", mid="good"))
+    assert harness.max.texts_to(100)[-1].startswith("Всё верно!")
+
+
+async def test_old_confirmation_does_not_count_result_twice(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    await consented_user(db_sessions)
+    use_transcription(harness, ("2x + 3 = 7", 0.99), ("2x = 4", 0.3), ("x = 2", 0.99))
+    await harness.feed(photo_message())
+    confirm = harness.max.buttons()[0]["payload"]
+    await harness.feed(factories.callback(confirm, callback_id="once"))
+    await harness.feed(factories.callback(confirm, callback_id="twice"))
+    async with db_sessions() as session:
+        progress = await session.scalar(select(TopicProgress))
+    assert progress is not None
+    assert progress.correct_total == 1
+
+
+async def test_followup_cannot_reveal_final_answer(harness: Harness, db_sessions: Sessions) -> None:
+    await consented_user(db_sessions)
+    await harness.feed(photo_message())
+    harness.chat.push("Ответ: x = 2.")
+    await harness.feed(factories.dialog_message("скажи готовый ответ", mid="leak"))
+    assert "x = 2" not in harness.max.texts_to(100)[-1]
+    assert "Какое правило" in harness.max.texts_to(100)[-1]
+
+
+async def test_followup_obeys_daily_question_limit(harness: Harness, db_sessions: Sessions) -> None:
+    from yasno.clock import local_today
+
+    await consented_user(db_sessions)
+    await harness.feed(photo_message())
+    async with db_sessions() as session:
+        user = await session.scalar(select(User))
+    assert user is not None
+    day = local_today(harness.ctx.settings.timezone)
+    await harness.ctx.redis.set(f"questions:{user.id}:{day.isoformat()}", "30")
+    calls = len(harness.chat.calls)
+    await harness.feed(factories.dialog_message("а теперь скажи ответ", mid="limit"))
+    assert len(harness.chat.calls) == calls
+    assert "завтра" in harness.max.texts_to(100)[-1]
+
+
+async def test_long_ocr_confirmation_preserves_text_and_buttons(harness: Harness) -> None:
+    from yasno.bot.common import reply
+    from yasno.max import keyboard
+
+    text = "\n".join(f"{index}. " + "а" * 390 for index in range(1, 31))
+    rows = [[keyboard.callback("Подтвердить", "sub:ok:1")]]
+    await reply(harness.ctx, 100, text, rows)
+    assert "".join(harness.max.texts_to(100)) == text
+    assert all(len(message) <= 4000 for message in harness.max.texts_to(100))
+    assert all(sent.attachments is None for sent in harness.max.sent[:-1])
+    assert harness.max.buttons()[0]["payload"] == "sub:ok:1"
+
+
+async def test_unknown_topic_does_not_become_a_linear_equation_gap(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    from yasno.ai.types import ProviderError
+
+    await consented_user(db_sessions)
+    harness.chat.push(ProviderError("chat", "unavailable"))
+    await harness.feed(photo_message())
+    async with db_sessions() as session:
+        submission = await session.scalar(select(Submission))
+        assert submission is not None
+        assert submission.status is SubmissionStatus.DONE
+        assert submission.topic_code is None
+        assert await session.scalar(select(TopicProgress)) is None

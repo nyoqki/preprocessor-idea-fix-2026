@@ -11,7 +11,15 @@ from yasno.bot.app import build_router
 from yasno.bot.context import BotContext
 from yasno.config import Settings
 from yasno.max.client import MaxClient
-from yasno.max.types import ChatMember, ChatType, Message, MessageBody, Recipient, Update
+from yasno.max.types import (
+    ChatMember,
+    ChatMembers,
+    ChatType,
+    Message,
+    MessageBody,
+    Recipient,
+    Update,
+)
 from yasno.services.analysis import Verifier
 from yasno.storage import LocalStorage
 
@@ -32,6 +40,7 @@ class FakeMax:
     chat_title: str = "9Б класс"
     image: bytes = b"\xff\xd8\xff\xe0fake-jpeg"
     downloads: list[str] = field(default_factory=list)
+    admins: set[int] = field(default_factory=lambda: {102})
 
     async def send_message(
         self,
@@ -60,6 +69,17 @@ class FakeMax:
 
     async def get_my_membership(self, chat_id: int) -> ChatMember:
         return ChatMember(user_id=1, first_name="bot", is_bot=True, permissions=self.permissions)
+
+    async def get_admins(self, chat_id: int) -> ChatMembers:
+        return await self.get_members(chat_id)
+
+    async def get_members(self, chat_id: int, *, marker: int | None = None) -> ChatMembers:
+        return ChatMembers(
+            members=[
+                ChatMember(user_id=user_id, first_name="Учитель", is_admin=True)
+                for user_id in self.admins
+            ]
+        )
 
     async def download(self, url: str, **_: Any) -> bytes:
         self.downloads.append(url)

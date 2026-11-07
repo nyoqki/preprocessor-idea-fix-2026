@@ -8,11 +8,12 @@ from yasno.bot import texts
 from yasno.bot.common import reply
 from yasno.bot.context import BotContext
 from yasno.clock import local_now, utcnow
-from yasno.db.models import ConsentStatus, Exam, Role, TopicProgress, User
+from yasno.db.models import ConsentStatus, Exam, Role, SchoolClass, TopicProgress, User
 from yasno.math.topics import topic_title
 from yasno.max import keyboard
 from yasno.max.client import MaxApiError
 from yasno.services import notifications, progress
+from yasno.services.access import is_chat_admin
 
 log = structlog.get_logger(__name__)
 
@@ -38,6 +39,15 @@ async def _notify(
     ctx: BotContext, user: User, kind: str, ref: str, text: str, rows: list[list[Any]]
 ) -> bool:
     async with ctx.sessions.begin() as session:
+        fresh = await session.get(User, user.id, with_for_update=True)
+        if (
+            fresh is None
+            or not fresh.dialog_available
+            or fresh.consent_status is ConsentStatus.REVOKED
+        ):
+            return False
+        if fresh.role is Role.STUDENT and fresh.consent_status is not ConsentStatus.GRANTED:
+            return False
         claimed = await notifications.claim(session, user.id, kind, ref)
     if claimed is None:
         return False
@@ -45,6 +55,8 @@ async def _notify(
         await reply(ctx, user.max_user_id, text, rows)
     except MaxApiError as exc:
         log.warning("reminder_failed", user_id=user.id, kind=kind, error=str(exc))
+        async with ctx.sessions.begin() as session:
+            await notifications.release_failed(session, claimed)
         return False
     async with ctx.sessions.begin() as session:
         await notifications.mark_sent(session, claimed)
@@ -170,6 +182,12 @@ async def send_teacher_digest(job_ctx: dict[str, Any]) -> int:
     digests: dict[int, str | None] = {}
     for teacher in teachers:
         assert teacher.class_id is not None
+        async with ctx.sessions() as session:
+            school_class = await session.get(SchoolClass, teacher.class_id)
+        if school_class is None or not await is_chat_admin(
+            ctx.max, school_class.max_chat_id, teacher.max_user_id
+        ):
+            continue
         if teacher.class_id not in digests:
             digests[teacher.class_id] = await _class_digest(ctx, teacher.class_id)
         digest = digests[teacher.class_id]

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createConnection } from "node:net";
 import { mkdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { chromium } from "playwright-core";
 
 const base = process.env.YASNO_DEMO_URL ?? "http://127.0.0.1:5183";
@@ -58,7 +59,9 @@ async function startServer(url, mock) {
 if (!process.env.YASNO_DEMO_URL) await startServer(base, true);
 if (!process.env.YASNO_HTTP_URL) await startServer(live, false);
 const browser = await chromium.launch({
-    executablePath: process.env.CHROMIUM_PATH ?? "/usr/bin/chromium",
+    executablePath:
+        process.env.CHROMIUM_PATH ??
+        (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined),
     headless: true,
     args: ["--no-sandbox"],
 });
@@ -76,6 +79,11 @@ async function context(theme = "light", width = 390, height = 844) {
         viewport: { width, height },
         colorScheme: theme,
     });
+    ctx.on("page", (page) => {
+        page.on("pageerror", (error) => {
+            report.errors.push({ label: "uncaught browser error", message: error.message });
+        });
+    });
     ctx.setDefaultTimeout(8000);
     ctx.setDefaultNavigationTimeout(15000);
     await ctx.route("https://st.max.ru/**", (route) => route.abort());
@@ -89,7 +97,12 @@ async function open(page, route = "/map", options = {}) {
         ...options,
     });
     await page.goto(`${base}/?${params}#${route}`);
-    await page.locator(".screen h1").waitFor();
+    try {
+        await page.locator(".screen h1").waitFor();
+    } catch (error) {
+        await snap(page, `failed-open-${visit}`);
+        throw new Error(`${route} ${JSON.stringify(options)}: ${error.message}`);
+    }
     if (options.scenario !== "loading")
         await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'));
 }
@@ -118,6 +131,8 @@ function contrast(a, b) {
     return (l[0] + 0.05) / (l[1] + 0.05);
 }
 async function run(label, fn) {
+    if (process.env.YASNO_BROWSER_FILTER && !label.includes(process.env.YASNO_BROWSER_FILTER))
+        return;
     try {
         await fn();
         report.passed.push(label);

@@ -2,7 +2,7 @@ import importlib
 from collections.abc import Callable
 from typing import Annotated, Any
 
-from fastapi import Depends, HTTPException, Query, Request, status
+from fastapi import Depends, HTTPException, Path, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from yasno.api.deps import get_session, get_settings_dep
@@ -62,9 +62,12 @@ def optional_str(value: object) -> str | None:
 def decode_cursor(cursor: str | None) -> int | None:
     if cursor is None or cursor == "":
         return None
-    if not cursor.isdigit() or len(cursor) > 19:
+    if not cursor.isascii() or not cursor.isdigit() or len(cursor) > 19:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail="invalid_cursor")
-    return int(cursor)
+    value = int(cursor)
+    if not 1 <= value <= 2**63 - 1:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail="invalid_cursor")
+    return value
 
 
 def next_cursor(ids: list[int], limit: int) -> str | None:
@@ -72,6 +75,7 @@ def next_cursor(ids: list[int], limit: int) -> str | None:
 
 
 PageLimit = Annotated[int, Query(ge=1, le=50)]
+ResourceId = Annotated[int, Path(ge=1, le=2**63 - 1)]
 
 
 def get_storage(request: Request) -> Storage:

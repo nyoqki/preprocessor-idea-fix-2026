@@ -166,6 +166,6 @@ export interface TeacherTopic {
 export interface TeacherSummary {
   school_class: SchoolClass | null;
   students_total: number;
-  students_with_gaps: number;
+  students_with_gaps: number | null;
   topics: TeacherTopic[];
 }

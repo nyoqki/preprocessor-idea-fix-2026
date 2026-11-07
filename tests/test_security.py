@@ -19,3 +19,8 @@ def test_tampered_token_is_rejected() -> None:
 def test_expired_token_is_rejected() -> None:
     token = sign_token(KEY, 42, 60, now=1_790_000_000)
     assert verify_token(KEY, token, now=1_790_000_061) is None
+
+
+def test_non_ascii_and_oversized_tokens_are_rejected() -> None:
+    assert verify_token(KEY, "42_1790000060_я", now=1_790_000_000) is None
+    assert verify_token(KEY, "9" * 5000, now=1_790_000_000) is None

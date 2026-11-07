@@ -18,6 +18,8 @@ def sign_token(key: bytes, subject: int, ttl_seconds: int, *, now: float | None 
 
 
 def verify_token(key: bytes, token: str, *, now: float | None = None) -> int | None:
+    if len(token) > 128 or not token.isascii():
+        return None
     parts = token.split("_")
     if len(parts) != 3 or not parts[0].isdigit() or not parts[1].isdigit():
         return None

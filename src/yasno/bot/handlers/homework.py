@@ -1,3 +1,4 @@
+import asyncio
 import re
 
 import structlog
@@ -9,7 +10,8 @@ from yasno.bot.context import BotContext
 from yasno.bot.handlers.start import continue_onboarding
 from yasno.bot.routing import Router, all_of, callback_prefix, has_image, in_dialog
 from yasno.clock import local_today
-from yasno.db.models import Submission, User
+from yasno.db.models import Submission, SubmissionStatus, User
+from yasno.math.leak import reveals_answer
 from yasno.math.topics import topic_title
 from yasno.max import keyboard
 from yasno.max.client import MaxApiError
@@ -22,6 +24,7 @@ from yasno.services.analysis import (
     correct_line,
     display,
     evaluate,
+    fail_submission,
     load_transcription,
     start_submission,
     transcribe,
@@ -61,6 +64,8 @@ def _review_row(ctx: BotContext, submission_id: int) -> list[keyboard.Button]:
 
 
 async def present(ctx: BotContext, user: User, analysis: Analysis) -> None:
+    if analysis.verdict is Verdict.CANCELLED:
+        return
     submission_id = analysis.submission_id
     rows: Rows = [_review_row(ctx, submission_id)] if submission_id is not None else []
     match analysis.verdict:
@@ -111,10 +116,12 @@ async def present(ctx: BotContext, user: User, analysis: Analysis) -> None:
 
 async def _evaluate_and_present(ctx: BotContext, user: User, submission_id: int) -> None:
     try:
-        analysis = await evaluate(
-            deps(ctx), submission_id=submission_id, user_id=user.id, grade=user.grade or 9
-        )
-    except ProviderError as exc:
+        async with asyncio.timeout(120):
+            analysis = await evaluate(
+                deps(ctx), submission_id=submission_id, user_id=user.id, grade=user.grade or 9
+            )
+    except (ProviderError, TimeoutError) as exc:
+        await fail_submission(deps(ctx), submission_id)
         log.warning("evaluation_failed", submission_id=submission_id, error=str(exc))
         await reply(ctx, user.max_user_id, texts.AI_UNAVAILABLE)
         return
@@ -155,8 +162,10 @@ async def on_photo(update: Update, ctx: BotContext) -> None:
     await ctx.redis.delete(_followup_key(user), _fix_key(user))
     await memory.forget(ctx, user)
     try:
-        analysis = await transcribe(deps(ctx), submission.id, image, content_type)
-    except ProviderError as exc:
+        async with asyncio.timeout(90):
+            analysis = await transcribe(deps(ctx), submission.id, image, content_type)
+    except (ProviderError, TimeoutError) as exc:
+        await fail_submission(deps(ctx), submission.id)
         log.warning("transcription_failed", submission_id=submission.id, error=str(exc))
         await reply(ctx, user.max_user_id, texts.AI_UNAVAILABLE)
         return
@@ -173,6 +182,8 @@ async def _owned_submission(ctx: BotContext, user: User, raw_id: str) -> int | N
         submission = await session.get(Submission, int(raw_id))
     if submission is None or submission.user_id != user.id:
         return None
+    if submission.status is SubmissionStatus.DONE:
+        return None
     return submission.id
 
 
@@ -181,6 +192,12 @@ async def on_submission_callback(update: Update, ctx: BotContext) -> None:
     assert update.callback is not None
     args = callback_args(update)
     user = await ensure_user(ctx, update.callback.user)
+    if not consent.has_consent(user):
+        await ctx.max.answer_callback(update.callback.callback_id, text=texts.CONSENT_REQUIRED)
+        return
+    if len(args) != 2 or args[0] not in ("ok", "fix"):
+        await ctx.max.answer_callback(update.callback.callback_id, notification="Не найдено")
+        return
     submission_id = await _owned_submission(ctx, user, args[1]) if len(args) == 2 else None
     if submission_id is None:
         await ctx.max.answer_callback(update.callback.callback_id, notification="Не найдено")
@@ -206,9 +223,10 @@ async def handle_pending_text(update: Update, ctx: BotContext, user: User) -> bo
         transcription = await correct_line(
             deps(ctx), submission_id, int(match.group(1)), match.group(2).strip()
         )
-        await ctx.redis.delete(_fix_key(user))
         if transcription is None:
-            return False
+            await reply(ctx, user.max_user_id, texts.FIX_LINE_NOT_FOUND)
+            return True
+        await ctx.redis.delete(_fix_key(user))
         await _evaluate_and_present(ctx, user, submission_id)
         return True
     followup = await ctx.redis.get(_followup_key(user))
@@ -225,7 +243,15 @@ async def handle_pending_text(update: Update, ctx: BotContext, user: User) -> bo
         "Решение ученика:\n" + "\n".join(f"{line.index}. {line.latex}" for line in stored.lines),
     ]
     history = await memory.load(ctx, user)
-    answer = await ctx.tutor.answer_question(text, context, user.grade or 9, history)
+    latex = [line.latex for line in stored.lines if line.is_math]
+    verification = await ctx.verifier.verify(latex, stored.task)
+    answer = await ctx.tutor.answer_question(
+        text,
+        context,
+        user.grade or 9,
+        history,
+        leak_check=lambda value: reveals_answer(value, verification, context=latex),
+    )
     await memory.remember_exchange(ctx, user, text, answer)
     await reply(ctx, user.max_user_id, answer, [_review_row(ctx, submission_id)])
     return True

@@ -84,7 +84,8 @@ export function TeacherScreen() {
           <EmptyState icon={<ChartIcon size={28} />} title="Данных по темам пока нет">
             <p>
               Сводка появится после разборов и тестов учеников класса. Отсутствие данных не означает
-              освоение темы.
+              освоение темы. Количества по теме показываем, когда в каждой группе есть минимум два
+              ученика.
             </p>
           </EmptyState>
         ) : (
@@ -92,7 +93,9 @@ export function TeacherScreen() {
             <section className="teacher-overview card">
               <span>Темы для повторения есть у</span>
               <strong>
-                {data.students_with_gaps} из {data.students_total} учеников
+                {data.students_with_gaps === null
+                  ? "Недостаточно данных для общей оценки"
+                  : `${data.students_with_gaps} из ${data.students_total} учеников`}
               </strong>
               <p>В сводке только количества по темам, без имён и личных работ.</p>
             </section>

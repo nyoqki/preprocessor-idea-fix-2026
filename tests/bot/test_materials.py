@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests import factories
 from tests.bot.harness import Harness, make_harness
+from tests.bot.test_homework import consented_user
 from yasno.db.models import Material
 
 pytestmark = pytest.mark.db
@@ -33,6 +34,15 @@ async def test_photo_in_class_chat_becomes_material(
             "is_channel": False,
         }
     )
+    from yasno.db.models import SchoolClass, User
+
+    await consented_user(db_sessions)
+    async with db_sessions.begin() as session:
+        school_class = await session.scalar(select(SchoolClass))
+        sender = await session.scalar(select(User).where(User.max_user_id == 100))
+        assert school_class is not None
+        assert sender is not None
+        sender.class_id = school_class.id
     sent_before = len(harness.max.sent)
     harness.chat.push('{"title": "Квадратные уравнения", "topic_codes": ["alg.quadratic_eq"]}')
     update = factories.group_message("", mid="p1")
@@ -78,3 +88,18 @@ async def test_relevant_materials_use_russian_full_text(db_sessions: Sessions) -
         found = await relevant_materials(session, class_id, "как найти дискриминант")
     assert len(found) == 1
     assert found[0].startswith("Дискриминант")
+
+
+async def test_unconnected_sender_is_not_downloaded_or_sent_to_ai(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    from tests.bot.test_onboarding import bot_added
+
+    await harness.feed(bot_added(chat_id=-777))
+    update = factories.group_message("Завтра контрольная по алгебре", mid="unknown")
+    update["message"]["body"]["attachments"] = [factories.photo("https://cdn/unknown.jpg")]
+    await harness.feed(update)
+    assert harness.max.downloads == []
+    assert harness.chat.calls == []
+    async with db_sessions() as session:
+        assert await session.scalar(select(Material)) is None

@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from yasno.api.webapp.auth import CurrentUser
-from yasno.api.webapp.common import Session, display_text, optional_str
+from yasno.api.webapp.common import ResourceId, Session, display_text, optional_str
 from yasno.api.webapp.schemas import (
     ActiveQuizOut,
     AnswerIn,
@@ -99,7 +99,7 @@ async def active_quiz(user: CurrentUser, session: Session) -> ActiveQuizOut:
 
 
 @router.get("/{quiz_id}")
-async def get_quiz(quiz_id: int, user: CurrentUser, session: Session) -> QuizOut:
+async def get_quiz(quiz_id: ResourceId, user: CurrentUser, session: Session) -> QuizOut:
     quiz = await _load_quiz(session, quiz_id, user.id)
     gap_topics = await _gap_topics(session, user.id)
     items = [
@@ -128,7 +128,7 @@ async def get_quiz(quiz_id: int, user: CurrentUser, session: Session) -> QuizOut
 
 @router.post("/{quiz_id}/items/{item_id}/answer")
 async def answer(
-    quiz_id: int, item_id: int, body: AnswerIn, user: CurrentUser, session: Session
+    quiz_id: ResourceId, item_id: ResourceId, body: AnswerIn, user: CurrentUser, session: Session
 ) -> AnswerOut:
     try:
         result = await quizzes.answer_item(

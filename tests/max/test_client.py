@@ -90,3 +90,22 @@ async def test_download_enforces_size_limit(client: MaxClient) -> None:
     respx.get("https://cdn.test/big.jpg").respond(content=b"x" * 2048)
     with pytest.raises(MaxApiError):
         await client.download("https://cdn.test/big.jpg", max_bytes=1024)
+
+
+@respx.mock
+async def test_admin_lookup_uses_dedicated_endpoint(client: MaxClient) -> None:
+    route = respx.get(f"{BASE}/chats/-1099511627776/members/admins").respond(
+        json={"members": [{"user_id": 2**40, "first_name": "Учитель", "is_admin": True}]}
+    )
+    result = await client.get_admins(-(2**40))
+    assert route.called
+    assert result.members[0].user_id == 2**40
+    assert result.members[0].is_admin
+
+
+@respx.mock
+async def test_download_transport_error_is_normalized(client: MaxClient) -> None:
+    respx.get("https://cdn.test/missing.jpg").mock(side_effect=httpx.ConnectError("offline"))
+    with pytest.raises(MaxApiError) as error:
+        await client.download("https://cdn.test/missing.jpg")
+    assert error.value.code == "download.unavailable"

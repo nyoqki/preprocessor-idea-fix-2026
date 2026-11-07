@@ -10,7 +10,7 @@ from yasno.db.models import ExamSource
 from yasno.max import keyboard
 from yasno.max.client import MaxApiError
 from yasno.max.types import Update, UpdateType
-from yasno.services import classes, exams, materials
+from yasno.services import classes, consent, exams, materials
 from yasno.users import get_by_max_id
 
 log = structlog.get_logger(__name__)
@@ -88,7 +88,9 @@ async def on_group_message(update: Update, ctx: BotContext) -> None:
             school_class.bot_can_read_chat = True
         class_id = school_class.id
         sender = await get_by_max_id(session, message.sender.user_id) if message.sender else None
-        uploader_id = sender.id if sender is not None else None
+        if sender is None or sender.class_id != class_id or not consent.has_consent(sender):
+            return
+        uploader_id = sender.id
     images = [a for a in message.all_attachments() if a.type == "image" and a.url]
     if images:
         await _ingest_images(ctx, class_id, uploader_id, [a.url for a in images if a.url])
@@ -106,7 +108,6 @@ async def on_group_message(update: Update, ctx: BotContext) -> None:
             topic_codes=info.topic_codes,
             source=ExamSource.CHAT,
             class_id=class_id,
-            raw_text=message.text[:2000],
             source_mid=message.body.mid,
         )
     log.info("exam_from_chat", exam_id=exam.id, created=created, class_id=class_id)

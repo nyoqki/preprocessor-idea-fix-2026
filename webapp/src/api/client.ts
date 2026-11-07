@@ -45,9 +45,8 @@ async function once<T>(path: string, init: RequestInit): Promise<T> {
   const timer = setTimeout(() => {
     controller.abort();
   }, TIMEOUT_MS);
-  let response: Response;
   try {
-    response = await fetch(`${BASE}${path}`, {
+    const response = await fetch(`${BASE}${path}`, {
       ...init,
       signal: controller.signal,
       headers: {
@@ -56,15 +55,21 @@ async function once<T>(path: string, init: RequestInit): Promise<T> {
         ...(init.body ? { "Content-Type": "application/json" } : {}),
       },
     });
-  } catch {
+    if (!response.ok) {
+      throw new ApiError(kindFor(response.status), response.status, `http ${response.status}`);
+    }
+    try {
+      return (await response.json()) as T;
+    } catch (error) {
+      if (controller.signal.aborted) throw error;
+      throw new ApiError("server", response.status, "invalid response");
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError("network", 0, "network");
   } finally {
     clearTimeout(timer);
   }
-  if (!response.ok) {
-    throw new ApiError(kindFor(response.status), response.status, `http ${response.status}`);
-  }
-  return (await response.json()) as T;
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {

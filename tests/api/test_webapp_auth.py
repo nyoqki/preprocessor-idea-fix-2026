@@ -160,3 +160,17 @@ def test_dependency_rejects_bad_headers(auth_client: TestClient, header: str | N
     response = auth_client.get("/whoami", headers=headers)
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "tma"
+
+
+@pytest.mark.parametrize("timestamp", ["99999999999999999999", "-99999999999999999999"])
+def test_signed_out_of_range_timestamp_is_rejected(timestamp: str) -> None:
+    with pytest.raises(InitDataError):
+        parse(build_init_data(extra={"auth_date": timestamp}))
+
+
+def test_non_ascii_signature_is_rejected_without_server_error() -> None:
+    raw = build_init_data().rpartition("&hash=")[0]
+    with pytest.raises(InitDataError):
+        parse(raw + "&hash=%D1%8F")
+    token = sign_media_token("scope", TOKEN, now=NOW)
+    assert not verify_media_token(token.rpartition(".")[0] + ".я", "scope", TOKEN, now=NOW)

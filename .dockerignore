@@ -10,3 +10,5 @@ data
 webapp/node_modules
 webapp/dist
 tests
+
+webapp/artifacts

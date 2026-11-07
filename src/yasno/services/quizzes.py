@@ -125,6 +125,7 @@ async def build_quiz(
     exam: Exam | None = None,
     rng: random.Random | None = None,
 ) -> Quiz:
+    await session.get(User, user.id, with_for_update=True, populate_existing=True)
     rng = rng or random.Random()  # noqa: S311
     await _expire_active(session, user.id)
     quiz = Quiz(user_id=user.id, exam_id=exam.id if exam else None, reason=reason)
@@ -207,6 +208,10 @@ async def answer_item(
     choice_index: int,
     now: datetime,
 ) -> AnswerResult:
+    await session.get(User, user_id, with_for_update=True, populate_existing=True)
+    await session.execute(
+        select(Quiz).where(Quiz.id == quiz_id, Quiz.user_id == user_id).with_for_update()
+    )
     result = await session.execute(
         select(QuizItem)
         .join(Quiz, Quiz.id == QuizItem.quiz_id)

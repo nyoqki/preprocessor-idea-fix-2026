@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, ClassVar, cast
 
 import structlog
@@ -5,6 +6,7 @@ from arq import cron
 from arq.typing import WorkerCoroutine
 from pydantic import ValidationError
 from redis.asyncio import Redis
+from sqlalchemy import select
 
 from yasno.ai.registry import build_ai
 from yasno.ai.tutor import Tutor
@@ -13,12 +15,14 @@ from yasno.bot.app import build_router
 from yasno.bot.context import BotContext
 from yasno.bot.routing import Router
 from yasno.config import get_settings
+from yasno.db.models import Submission, SubmissionStatus, User
 from yasno.db.session import create_engine, create_sessionmaker
 from yasno.logs import configure_logging
 from yasno.max.client import MaxApiError, MaxClient
+from yasno.max.tls import build_ssl_context
 from yasno.max.types import Update
 from yasno.queue import HANDLE_UPDATE, JOB_RESULT_TTL_SECONDS, QUEUE_NAME, redis_settings
-from yasno.services.analysis import Verifier
+from yasno.services.analysis import AnalysisDeps, Verifier, fail_submission
 from yasno.storage import LocalStorage
 from yasno.worker.reminders import (
     send_exam_reminders,
@@ -29,6 +33,7 @@ from yasno.worker.reminders import (
 log = structlog.get_logger(__name__)
 
 type JobContext = dict[str, Any]
+UPDATE_TIMEOUT_SECONDS = 240.0
 
 
 async def startup(job_ctx: JobContext) -> None:
@@ -37,6 +42,7 @@ async def startup(job_ctx: JobContext) -> None:
     max_client = MaxClient(
         settings.max_bot_token.get_secret_value(),
         base_url=str(settings.max_api_url).rstrip("/"),
+        verify=build_ssl_context(settings.max_extra_ca_file),
     )
     engine = create_engine(str(settings.database_url))
     redis = Redis.from_url(str(settings.redis_url))
@@ -85,10 +91,36 @@ async def handle_update(job_ctx: JobContext, raw: dict[str, Any]) -> None:
     router: Router = job_ctx["router"]
     bot: BotContext = job_ctx["bot"]
     try:
-        await router.dispatch(update, bot)
+        async with asyncio.timeout(UPDATE_TIMEOUT_SECONDS):
+            await router.dispatch(update, bot)
     except Exception:
         log.exception("update_failed", update_type=update.update_type)
+        await _fail_processing(update, bot)
         await _notify_failure(update, bot)
+
+
+async def _fail_processing(update: Update, bot: BotContext) -> None:
+    message = update.message
+    if message is None or not message.is_dialog or update.actor_id is None:
+        return
+    try:
+        async with bot.sessions() as session:
+            ids = list(
+                await session.scalars(
+                    select(Submission.id)
+                    .join(User, User.id == Submission.user_id)
+                    .where(
+                        User.max_user_id == update.actor_id,
+                        Submission.source_mid == message.body.mid,
+                        Submission.status == SubmissionStatus.PROCESSING,
+                    )
+                )
+            )
+        deps = AnalysisDeps(bot.sessions, bot.storage, bot.tutor, bot.verifier)
+        for submission_id in ids:
+            await fail_submission(deps, submission_id)
+    except Exception:
+        log.exception("failed_submission_status_not_saved")
 
 
 async def _notify_failure(update: Update, bot: BotContext) -> None:
@@ -97,8 +129,9 @@ async def _notify_failure(update: Update, bot: BotContext) -> None:
     if user_id is None or (message is not None and not message.is_dialog):
         return
     try:
-        await bot.max.send_message(user_id=user_id, text=texts.INTERNAL_ERROR)
-    except MaxApiError:
+        async with asyncio.timeout(10):
+            await bot.max.send_message(user_id=user_id, text=texts.INTERNAL_ERROR)
+    except (MaxApiError, TimeoutError):
         log.warning("failure_notice_not_sent", user_id=user_id)
 
 

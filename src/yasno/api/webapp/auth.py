@@ -126,13 +126,13 @@ def parse_init_data(
         raise InitDataError("empty or oversized init data")
     pairs, received = _split(raw)
     expected = sign_init_data(pairs, bot_token)
-    if not hmac.compare_digest(expected, received.lower()):
+    if not hmac.compare_digest(expected.encode(), received.lower().encode()):
         raise InitDataError("signature mismatch")
     try:
         auth_ts = int(pairs["auth_date"])
-    except (KeyError, ValueError) as exc:
+        auth_date = datetime.fromtimestamp(auth_ts, UTC)
+    except (KeyError, ValueError, OverflowError, OSError) as exc:
         raise InitDataError("auth_date is invalid") from exc
-    auth_date = datetime.fromtimestamp(auth_ts, UTC)
     current = now or datetime.now(UTC)
     if auth_date > current + CLOCK_SKEW:
         raise InitDataError("auth_date is in the future")
@@ -226,4 +226,4 @@ def verify_media_token(
     if expires < int((now or datetime.now(UTC)).timestamp()):
         return False
     expected = _media_signature(_media_key(bot_token), scope, expires)
-    return hmac.compare_digest(expected, signature)
+    return hmac.compare_digest(expected.encode(), signature.encode())

@@ -180,5 +180,5 @@ class TeacherTopicOut(BaseModel):
 class TeacherSummaryOut(BaseModel):
     school_class: ClassOut | None
     students_total: int
-    students_with_gaps: int
+    students_with_gaps: int | None
     topics: list[TeacherTopicOut]

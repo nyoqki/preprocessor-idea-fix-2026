@@ -8,6 +8,7 @@ from yasno.api.webapp.common import (
     AppSettings,
     AppStorage,
     PageLimit,
+    ResourceId,
     Session,
     decode_cursor,
     display_text,
@@ -132,7 +133,7 @@ async def list_submissions(
 
 @router.get("/{submission_id}")
 async def get_submission(
-    submission_id: int, user: CurrentUser, session: Session, settings: AppSettings
+    submission_id: ResourceId, user: CurrentUser, session: Session, settings: AppSettings
 ) -> SubmissionDetail:
     submission = await _owned(session, submission_id, user.id)
     base = to_out(submission, settings)
@@ -160,7 +161,7 @@ async def get_submission(
 
 @router.get("/{submission_id}/image")
 async def get_submission_image(
-    submission_id: int,
+    submission_id: ResourceId,
     session: Session,
     settings: AppSettings,
     storage: AppStorage,
@@ -180,5 +181,5 @@ async def get_submission_image(
     return Response(
         content=data,
         media_type=sniff_image_type(data),
-        headers={"Cache-Control": "private, max-age=3600"},
+        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
     )

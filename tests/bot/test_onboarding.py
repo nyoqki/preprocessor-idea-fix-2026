@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -118,3 +119,60 @@ async def test_forged_parent_token_is_rejected(harness: Harness, db_sessions: Se
     )
     child = await user_by_max_id(db_sessions, 105)
     assert child.consent_status is ConsentStatus.NONE
+
+
+async def test_delete_clears_private_exam_and_dialog_memory(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    from tests.bot.test_homework import consented_user, photo_message
+    from yasno.bot import memory
+    from yasno.db.models import Exam, ExamSource, Submission, TopicProgress
+
+    await consented_user(db_sessions)
+    await harness.feed(photo_message())
+    user = await user_by_max_id(db_sessions, 100)
+    assert await memory.load(harness.ctx, user)
+    async with db_sessions.begin() as session:
+        session.add(
+            Exam(
+                title="Личная контрольная",
+                subject="алгебра",
+                scheduled_on=date(2026, 11, 10),
+                source=ExamSource.STUDENT,
+                user_id=user.id,
+            )
+        )
+    await harness.ctx.redis.set(f"fix:{user.id}", "1")
+    await harness.feed(factories.callback("data:delete"))
+    assert await memory.load(harness.ctx, user) == []
+    assert await harness.ctx.redis.get(f"fix:{user.id}") is None
+    assert await harness.ctx.redis.get(f"followup:{user.id}") is None
+    async with db_sessions() as session:
+        assert await session.scalar(select(Exam)) is None
+        assert await session.scalar(select(Submission)) is None
+        assert await session.scalar(select(TopicProgress)) is None
+    assert (await user_by_max_id(db_sessions, 100)).consent_status is ConsentStatus.REVOKED
+
+
+async def test_student_cannot_claim_teacher_role_with_public_invite(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    await harness.feed(bot_added())
+    async with db_sessions() as session:
+        school_class = await session.scalar(select(SchoolClass))
+    assert school_class is not None
+    await harness.feed(bot_started(101, f"join_{school_class.invite_code}"))
+    await harness.feed(bot_started(101, f"teach_{school_class.invite_code}"))
+    assert (await user_by_max_id(db_sessions, 101)).role is Role.STUDENT
+    assert any("администратор" in t for t in harness.max.texts_to(101))
+
+
+async def test_child_cannot_confirm_own_parent_link(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    await harness.feed(bot_started())
+    child = await user_by_max_id(db_sessions, 100)
+    token = parent_token(harness.ctx.settings.max_bot_token.get_secret_value(), child.id)
+    await harness.feed(factories.callback(f"parent:{token}", user_id=100))
+    assert "со своего аккаунта" in harness.max.callbacks[-1]["text"]
+    assert (await user_by_max_id(db_sessions, 100)).consent_status is not ConsentStatus.GRANTED

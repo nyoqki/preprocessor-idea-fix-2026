@@ -341,3 +341,38 @@ def test_result_is_picklable_and_runs_in_process_pool() -> None:
     with ProcessPoolExecutor(max_workers=1, mp_context=context) as pool:
         result = pool.submit(verify_solution, lines).result(timeout=60)
     assert result.status is Status.CORRECT
+
+
+def test_leading_constant_header_is_not_taken_as_task() -> None:
+    result = verify_solution(
+        [
+            r"\sqrt{5}.",
+            "x^3 - 11x + 48 = 0",
+            "x^3 - 11x + 48 = (x + 3)(x^2 - 3x + 16)",
+            r"x + 3 = 0 \Rightarrow x = -3",
+        ]
+    )
+    assert result.status is Status.ERROR
+    assert result.problem_kind is ProblemKind.EQUATION
+    assert result.first_error_step == 2
+
+
+def test_wrong_factorization_is_reported_as_factoring() -> None:
+    result = verify_solution(
+        [
+            "x^3 - 11x + 48 = (x + 3)(x^2 - 3x + 16)",
+            r"x + 3 = 0 \Rightarrow x = -3",
+        ],
+        "x^3 - 11x + 48 = 0",
+    )
+    assert result.status is Status.ERROR
+    assert result.first_error_step == 0
+    assert result.error_type is ErrorType.FACTORING
+
+
+def test_correct_factorization_still_passes() -> None:
+    result = verify_solution(
+        ["x^3 + 7x + 48 = (x + 3)(x^2 - 3x + 16)", "x + 3 = 0", "x = -3"],
+        "x^3 + 7x + 48 = 0",
+    )
+    assert result.error_type is None

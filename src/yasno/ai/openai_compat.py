@@ -63,6 +63,7 @@ class OpenAICompatClient:
         temperature: float = 0.2,
         max_tokens: int = 800,
         operation: str = "chat",
+        thinking: bool | None = None,
     ) -> str:
         body: dict[str, Any] = {
             "model": model,
@@ -74,6 +75,8 @@ class OpenAICompatClient:
         response_format = self._response_format(json_schema) if json_schema else None
         if response_format is not None:
             body["response_format"] = response_format
+        if thinking is not None:
+            body["thinking"] = {"type": "enabled" if thinking else "disabled"}
         started = time.monotonic()
         data = await self.http.send_json("POST", "chat/completions", json=body)
         text = first_choice_text(PROVIDER, data)
@@ -82,10 +85,13 @@ class OpenAICompatClient:
 
 
 class OpenAICompatChat:
-    def __init__(self, client: OpenAICompatClient, model: str) -> None:
+    def __init__(
+        self, client: OpenAICompatClient, model: str, *, reasoning_tokens: int = 0
+    ) -> None:
         self.client = client
         self.model = model
         self.name = f"{PROVIDER}:{model}"
+        self._reasoning_tokens = reasoning_tokens
 
     async def complete(
         self,
@@ -100,16 +106,24 @@ class OpenAICompatChat:
             [{"role": m.role.value, "content": m.content} for m in messages],
             json_schema=json_schema,
             temperature=temperature,
-            max_tokens=max_tokens,
+            max_tokens=max_tokens + self._reasoning_tokens,
         )
 
 
 class OpenAICompatVision:
-    def __init__(self, client: OpenAICompatClient, model: str, *, max_tokens: int = 2000) -> None:
+    def __init__(
+        self,
+        client: OpenAICompatClient,
+        model: str,
+        *,
+        max_tokens: int = 2000,
+        thinking: bool | None = None,
+    ) -> None:
         self.client = client
         self.model = model
         self.name = f"{PROVIDER}:{model}"
         self._max_tokens = max_tokens
+        self._thinking = thinking
 
     async def transcribe(self, image: bytes, mime_type: str) -> Transcription:
         encoded = base64.b64encode(image).decode("ascii")
@@ -126,6 +140,7 @@ class OpenAICompatVision:
             temperature=0.0,
             max_tokens=self._max_tokens,
             operation="vision",
+            thinking=self._thinking,
         )
 
         async def repair(instruction: str) -> str:
@@ -139,6 +154,7 @@ class OpenAICompatVision:
                 temperature=0.0,
                 max_tokens=self._max_tokens,
                 operation="vision_repair",
+                thinking=self._thinking,
             )
 
         return await transcription_with_repair(self.name, raw, repair)

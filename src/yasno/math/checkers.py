@@ -751,6 +751,8 @@ class SetChecker(Checker):
 
     def _classify_transition(self, statement: Statement, previous: Any, current: Any) -> ErrorType:
         before = self.current_statement
+        if isinstance(statement, Equation) and self._wrong_factoring(statement):
+            return ErrorType.FACTORING
         if isinstance(before, Equation) and isinstance(statement, Equation):
             found = self._match_equation(before, statement)
             if found is not None:
@@ -763,6 +765,23 @@ class SetChecker(Checker):
         if is_finite(current) and is_finite(previous) and missing and subset(current, previous):
             return ErrorType.DIVISION_BY_VARIABLE if self._divided(missing) else ErrorType.LOST_ROOT
         return self._classify_values(previous, current)
+
+    def _wrong_factoring(self, statement: Equation) -> bool:
+
+        for whole, product in (
+            (statement.raw_lhs, statement.raw_rhs),
+            (statement.raw_rhs, statement.raw_lhs),
+        ):
+            if not isinstance(product, sp.Mul) or isinstance(whole, sp.Mul):
+                continue
+            if not whole.has(self.variable) or not whole.is_polynomial(self.variable):
+                continue
+            factors = [f for f in product.args if f.has(self.variable)]
+            if not all(f.is_polynomial(self.variable) for f in factors):
+                continue
+            if len(factors) >= 2 and sp.expand(whole - product) != 0:
+                return True
+        return False
 
     def _match_equation(self, before: Equation, after: Equation) -> ErrorType | None:
         target = after.lhs - after.rhs

@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openai_chat_model: str = "deepseek-v4-flash"
     openai_json_mode: Literal["schema", "object", "off"] = "object"
+    openai_reasoning_tokens: int = Field(default=0, ge=0)
+    openai_vision_thinking: bool | None = None
     openai_vision_model: str | None = None
     openai_vision_base_url: AnyHttpUrl | None = None
     openai_vision_api_key: SecretStr | None = None

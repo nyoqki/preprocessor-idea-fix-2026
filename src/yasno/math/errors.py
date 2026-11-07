@@ -5,6 +5,7 @@ class ErrorType(StrEnum):
     SIGN = "sign"
     ARITHMETIC = "arithmetic"
     DISTRIBUTION = "distribution"
+    FACTORING = "factoring"
     FRACTIONS = "fractions"
     POWERS = "powers"
     ROOTS = "roots"
@@ -21,6 +22,7 @@ ERROR_TITLES: dict[ErrorType, str] = {
     ErrorType.SIGN: "Ошибка в знаке",
     ErrorType.ARITHMETIC: "Ошибка в вычислении",
     ErrorType.DISTRIBUTION: "Раскрытие скобок",
+    ErrorType.FACTORING: "Разложение на множители",
     ErrorType.FRACTIONS: "Действия с дробями",
     ErrorType.POWERS: "Свойства степеней",
     ErrorType.ROOTS: "Свойства корней",

@@ -149,12 +149,21 @@ def _items(lines: Sequence[str]) -> list[Item]:
     return items
 
 
+def _is_header(item: Item, rest: list[Item]) -> bool:
+
+    if not isinstance(item.statement, Expression) or _free(item.statement):
+        return False
+    return any(_is_task(other.statement) and _free(other.statement) for other in rest)
+
+
 def _task_item(task: str | None, items: list[Item]) -> tuple[Item | None, list[Item], bool]:
     if task:
         for statement in reversed(parse_steps(task)):
             if _is_task(statement):
                 return Item(-1, statement), items, False
     for position, item in enumerate(items):
+        if _is_header(item, items[position + 1 :]):
+            continue
         if _is_task(item.statement):
             return item, items[position + 1 :], True
         if isinstance(item.statement, Unparseable):

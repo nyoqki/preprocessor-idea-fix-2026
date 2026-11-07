@@ -5,6 +5,7 @@ import orjson
 import pytest
 import respx
 
+from yasno.ai.http import ProviderHttpError
 from yasno.ai.openai_compat import OpenAICompatChat, OpenAICompatClient, OpenAICompatVision
 from yasno.ai.registry import AiConfigurationError, build_ai
 from yasno.ai.resilience import FallbackChat
@@ -67,6 +68,36 @@ async def test_off_mode_sends_no_response_format() -> None:
     await OpenAICompatChat(plain, "m").complete(MESSAGES, json_schema=SCHEMA)
     await plain.aclose()
     assert "response_format" not in orjson.loads(route.calls.last.request.content)
+
+
+@respx.mock
+async def test_chat_keeps_thinking_and_reserves_reasoning_tokens(
+    client: OpenAICompatClient,
+) -> None:
+    route = respx.post(f"{BASE}/chat/completions").respond(json=completion("ok"))
+    await OpenAICompatChat(client, "m", reasoning_tokens=4000).complete(MESSAGES, max_tokens=600)
+    body = orjson.loads(route.calls.last.request.content)
+    assert "thinking" not in body
+    assert body["max_tokens"] == 4600
+
+
+@respx.mock
+async def test_vision_can_disable_thinking(client: OpenAICompatClient) -> None:
+    route = respx.post(f"{BASE}/chat/completions").respond(
+        json=completion('{"is_math": true, "lines": [{"latex": "x = 1"}]}')
+    )
+    await OpenAICompatVision(client, "m", thinking=False).transcribe(b"\x89PNG", "image/png")
+    assert orjson.loads(route.calls.last.request.content)["thinking"] == {"type": "disabled"}
+
+
+@respx.mock
+async def test_answer_cut_by_token_limit_is_not_retried(client: OpenAICompatClient) -> None:
+    payload = completion("")
+    payload["choices"][0]["finish_reason"] = "length"  # type: ignore[index]
+    respx.post(f"{BASE}/chat/completions").respond(json=payload)
+    with pytest.raises(ProviderHttpError, match="max_tokens") as caught:
+        await OpenAICompatChat(client, "m").complete(MESSAGES)
+    assert not caught.value.retryable
 
 
 @respx.mock

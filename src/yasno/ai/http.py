@@ -172,5 +172,7 @@ def first_choice_text(provider: str, data: Any) -> str:
             str(part.get("text", "")) for part in content if isinstance(part, Mapping)
         )
     if not isinstance(content, str) or not content.strip():
+        if data["choices"][0].get("finish_reason") == "length":
+            raise ProviderHttpError(provider, "completion cut off by max_tokens before any answer")
         raise ProviderHttpError(provider, "empty completion", retryable=True)
     return content

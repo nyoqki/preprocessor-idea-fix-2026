@@ -155,7 +155,9 @@ def _openai(
                 _secret(settings.openai_vision_api_key or settings.openai_api_key),
             )
             clients.append(vision_client)
-        vision = OpenAICompatVision(vision_client, settings.openai_vision_model)
+        vision = OpenAICompatVision(
+            vision_client, settings.openai_vision_model, thinking=settings.openai_vision_thinking
+        )
 
     async def close() -> None:
         for item in clients:
@@ -163,7 +165,11 @@ def _openai(
 
     return ProviderSet(
         name="openai",
-        chat=OpenAICompatChat(chat_client, settings.openai_chat_model),
+        chat=OpenAICompatChat(
+            chat_client,
+            settings.openai_chat_model,
+            reasoning_tokens=settings.openai_reasoning_tokens,
+        ),
         vision=vision,
         close=close,
     )

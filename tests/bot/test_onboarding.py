@@ -101,6 +101,9 @@ async def test_parent_consent_flow(harness: Harness, db_sessions: Sessions) -> N
     child = await user_by_max_id(db_sessions, 104)
     await harness.feed(factories.callback("consent:minor", user_id=104, callback_id="c3"))
     assert "parent_" in harness.max.callbacks[-1]["text"]
+    child = await user_by_max_id(db_sessions, 104)
+    assert child.requires_parent_consent
+    assert child.consent_status is ConsentStatus.PENDING
 
     token = parent_token("bot-token", child.id)
     await harness.feed(bot_started(200, f"parent_{token}"))
@@ -108,6 +111,7 @@ async def test_parent_consent_flow(harness: Harness, db_sessions: Sessions) -> N
     await harness.feed(factories.callback(f"parent:{token}", user_id=200, callback_id="c4"))
     child = await user_by_max_id(db_sessions, 104)
     assert child.consent_status is ConsentStatus.GRANTED
+    assert child.requires_parent_consent
     assert any("подтвердил" in t for t in harness.max.texts_to(104))
 
 
@@ -176,3 +180,135 @@ async def test_child_cannot_confirm_own_parent_link(
     await harness.feed(factories.callback(f"parent:{token}", user_id=100))
     assert "со своего аккаунта" in harness.max.callbacks[-1]["text"]
     assert (await user_by_max_id(db_sessions, 100)).consent_status is not ConsentStatus.GRANTED
+
+
+async def test_child_opening_own_parent_link_does_not_get_confirmation_button(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    await harness.feed(bot_started())
+    await harness.feed(factories.callback("consent:minor"))
+    child = await user_by_max_id(db_sessions, 100)
+    token = parent_token("bot-token", child.id)
+    await harness.feed(bot_started(100, f"parent_{token}"))
+    assert "со своего аккаунта" in harness.max.texts_to(100)[-1]
+    assert harness.max.buttons() == []
+    assert (await user_by_max_id(db_sessions, 100)).consent_status is ConsentStatus.PENDING
+
+
+@pytest.mark.parametrize("restart", ["/start", "bot_started", "grade:9"])
+async def test_minor_cannot_use_old_adult_button_after_restarting_onboarding(
+    harness: Harness, db_sessions: Sessions, restart: str
+) -> None:
+    await harness.feed(bot_started())
+    await harness.feed(factories.callback("grade:8"))
+    await harness.feed(factories.callback("consent:minor"))
+    if restart == "bot_started":
+        await harness.feed(bot_started())
+    elif restart.startswith("/"):
+        await harness.feed(factories.dialog_message(restart))
+    else:
+        await harness.feed(factories.callback(restart))
+    assert "parent_" in harness.max.texts_to(100)[-1]
+    assert [b["payload"] for b in harness.max.buttons()] == ["age:change"]
+
+    await harness.feed(factories.callback("consent:adult"))
+    assert "parent_" in harness.max.callbacks[-1]["text"]
+    child = await user_by_max_id(db_sessions, 100)
+    assert child.requires_parent_consent
+    assert child.consent_status is ConsentStatus.PENDING
+    assert child.consented_at is None
+
+
+async def test_minor_still_needs_parent_after_deleting_data(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    await harness.feed(bot_started())
+    await harness.feed(factories.callback("consent:minor"))
+    child = await user_by_max_id(db_sessions, 100)
+    token = parent_token("bot-token", child.id)
+    await harness.feed(factories.callback(f"parent:{token}", user_id=200))
+    await harness.feed(factories.callback("data:delete"))
+    child = await user_by_max_id(db_sessions, 100)
+    assert child.requires_parent_consent
+    assert child.consent_status is ConsentStatus.REVOKED
+
+    await harness.feed(factories.callback(f"parent:{token}", user_id=200))
+    assert (await user_by_max_id(db_sessions, 100)).consent_status is ConsentStatus.REVOKED
+    await harness.feed(factories.dialog_message("/start"))
+    assert "parent_" in harness.max.texts_to(100)[-1]
+    await harness.feed(factories.callback("consent:adult"))
+    assert (await user_by_max_id(db_sessions, 100)).consent_status is ConsentStatus.PENDING
+    await harness.feed(factories.callback(f"parent:{token}", user_id=200))
+    assert (await user_by_max_id(db_sessions, 100)).consent_status is ConsentStatus.GRANTED
+
+
+async def test_minor_choice_revokes_previous_self_consent(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    await harness.feed(bot_started())
+    await harness.feed(factories.callback("consent:adult"))
+    await harness.feed(factories.callback("consent:minor"))
+    await harness.feed(factories.callback("consent:adult"))
+    child = await user_by_max_id(db_sessions, 100)
+    assert child.requires_parent_consent
+    assert child.consent_status is ConsentStatus.PENDING
+    assert child.consented_at is None
+
+
+@pytest.mark.parametrize("entry", ["/age", "age:change"])
+@pytest.mark.parametrize("deleted", [False, True])
+async def test_mistaken_minor_choice_can_be_explicitly_corrected(
+    harness: Harness, db_sessions: Sessions, entry: str, deleted: bool
+) -> None:
+    await harness.feed(bot_started())
+    await harness.feed(factories.callback("grade:9"))
+    await harness.feed(factories.callback("consent:minor"))
+    if deleted:
+        await harness.feed(factories.callback("data:delete"))
+    child = await user_by_max_id(db_sessions, 100)
+    previous_status = child.consent_status
+    token = parent_token("bot-token", child.id)
+
+    if entry.startswith("/"):
+        await harness.feed(factories.dialog_message(entry))
+        prompt = harness.max.texts_to(100)[-1]
+        buttons = harness.max.buttons()
+    else:
+        await harness.feed(factories.callback(entry))
+        answer = harness.max.callbacks[-1]
+        prompt = answer["text"]
+        buttons = [b for row in answer["attachments"][0]["payload"]["buttons"] for b in row]
+    assert "Тебе уже есть 14 лет?" in prompt
+    assert buttons[0]["payload"] == "age:adult"
+    assert "я согласен" in buttons[0]["text"]
+    child = await user_by_max_id(db_sessions, 100)
+    assert child.requires_parent_consent
+    assert child.consent_status is previous_status
+
+    await harness.feed(factories.callback(buttons[0]["payload"]))
+    child = await user_by_max_id(db_sessions, 100)
+    assert not child.requires_parent_consent
+    assert child.consent_status is ConsentStatus.GRANTED
+    assert child.consented_at is not None
+    assert child.grade == 9
+
+    # A stale parental confirmation cannot change the corrected consent.
+    await harness.feed(factories.callback(f"parent:{token}", user_id=200))
+    assert "недействительна" in harness.max.callbacks[-1]["text"]
+    assert (await user_by_max_id(db_sessions, 100)).consented_at == child.consented_at
+
+
+async def test_age_correction_can_keep_minor_choice(
+    harness: Harness, db_sessions: Sessions
+) -> None:
+    await harness.feed(bot_started())
+    await harness.feed(factories.callback("consent:minor"))
+    await harness.feed(factories.dialog_message("/age"))
+    await harness.feed(factories.callback(harness.max.buttons()[1]["payload"]))
+    child = await user_by_max_id(db_sessions, 100)
+    assert child.requires_parent_consent
+    assert child.consent_status is ConsentStatus.PENDING
+    assert child.consented_at is None
+    answer = harness.max.callbacks[-1]
+    assert "parent_" in answer["text"]
+    assert answer["attachments"][0]["payload"]["buttons"][0][0]["payload"] == "age:change"

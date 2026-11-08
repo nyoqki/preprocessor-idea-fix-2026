@@ -100,6 +100,7 @@ class User(TimestampMixin, Base):
         pg_enum(ConsentStatus, "consent_status"), server_default=ConsentStatus.NONE.value
     )
     consented_at: Mapped[datetime | None]
+    requires_parent_consent: Mapped[bool] = mapped_column(server_default=text("false"))
     dialog_available: Mapped[bool] = mapped_column(server_default=text("true"))
     last_seen_at: Mapped[datetime | None]
 

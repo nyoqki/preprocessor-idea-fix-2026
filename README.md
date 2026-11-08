@@ -4,6 +4,8 @@
 
 Бот для проверки: [@ideya_fiks_159_bot](https://max.ru/ideya_fiks_159_bot).
 Репозиторий: [preprocessor-idea-fix-2026](https://github.com/nyoqki/preprocessor-idea-fix-2026).
+Готовая сборка для сдачи: [архив образа в GitHub Releases](https://github.com/nyoqki/preprocessor-idea-fix-2026/releases/tag/submission-2026-11-08) и [образ в Docker Hub](https://hub.docker.com/r/nyoqki/preprocessor-idea-fix-2026).
+Сборки из `main`: [GitHub Container Registry (GHCR)](https://github.com/nyoqki/preprocessor-idea-fix-2026/pkgs/container/preprocessor-idea-fix-2026).
 [Как проект закрывает критерии хакатона](docs/criteria.md): реализация, ссылки на код и тесты, результаты проверок и оставшиеся задачи.
 
 Ученик присылает боту фото домашней работы. Бот распознаёт решение, находит шаг, на котором появилась ошибка, и объясняет её наводящим вопросом, не давая готового ответа. Ошибки складываются в личную карту пробелов. За два дня до контрольной бот сам пишет ученику и собирает тест по темам контрольной и по его собственным пробелам.
@@ -39,7 +41,7 @@
 ## Запуск через Docker Compose
 
 ```bash
-git clone git@github.com:nyoqki/preprocessor-idea-fix-2026.git yasno
+git clone https://github.com/nyoqki/preprocessor-idea-fix-2026.git yasno
 cd yasno
 cp .env.example .env
 # заполнить MAX_BOT_TOKEN, MAX_WEBHOOK_SECRET, DOMAIN, PUBLIC_BASE_URL,
@@ -98,18 +100,47 @@ docker build -t yasno .
 
 Кнопки возврата в чат в Docker-сборке ведут к `ideya_fiks_159_bot`. Для другого бота передайте `--build-arg VITE_BOT_USERNAME=your_bot`; при разработке Vite задайте `VITE_BOT_USERNAME` в окружении.
 
-Готовый образ публикуется в GitHub Container Registry:
+Готовая сборка для сдачи находится в [GitHub Releases](https://github.com/nyoqki/preprocessor-idea-fix-2026/releases/tag/submission-2026-11-08).
+В релиз приложен сам образ для Linux x86-64, коммит `b4ddf0e`, и файл SHA-256.
+Скачивание и загрузка образа в Docker:
+
+```bash
+curl -fLO https://github.com/nyoqki/preprocessor-idea-fix-2026/releases/download/submission-2026-11-08/yasno-submission-b4ddf0e.tar.gz
+curl -fLO https://github.com/nyoqki/preprocessor-idea-fix-2026/releases/download/submission-2026-11-08/yasno-submission-b4ddf0e.tar.gz.sha256
+sha256sum -c yasno-submission-b4ddf0e.tar.gz.sha256
+docker load -i yasno-submission-b4ddf0e.tar.gz
+docker run --rm yasno:submission-b4ddf0e --help
+```
+
+Тот же образ можно получить из Docker Hub:
+
+```bash
+docker pull nyoqki/preprocessor-idea-fix-2026:submission-b4ddf0e
+```
+
+Для запуска готовой сборки со всеми сервисами заполните `.env`, как в разделе
+про Docker Compose, затем выполните:
+
+```bash
+export YASNO_IMAGE=nyoqki/preprocessor-idea-fix-2026:submission-b4ddf0e
+docker compose --profile public up -d --no-build --pull missing
+docker compose exec api yasno webhook set
+```
+
+Текущая версия из `main` также публикуется в [GitHub Container Registry](https://github.com/nyoqki/preprocessor-idea-fix-2026/pkgs/container/preprocessor-idea-fix-2026):
 
 ```bash
 docker pull ghcr.io/nyoqki/preprocessor-idea-fix-2026:latest
 ```
 
-Запуск отдельных процессов из одного образа:
+Запуск отдельных процессов из локально собранного образа `yasno`:
+PostgreSQL и Redis должны быть доступны из контейнеров по адресам из `.env`.
+API и worker используют один том для фото.
 
 ```bash
 docker run --rm --env-file .env yasno migrate
-docker run -d --name yasno-api --env-file .env -p 8000:8000 yasno api
-docker run -d --name yasno-worker --env-file .env yasno worker
+docker run -d --name yasno-api --env-file .env -v yasno-storage:/data/storage -p 8000:8000 yasno api
+docker run -d --name yasno-worker --env-file .env -v yasno-storage:/data/storage yasno worker
 ```
 
 ## Пример запуска через командную строку
